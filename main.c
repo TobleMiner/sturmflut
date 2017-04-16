@@ -17,9 +17,8 @@
 
 #define NUM_THREADS 100
 #define NUM_CONNECTIONS 100
+#define MAX_CONNECTIONS_PER_ADDRESS 100
 #define SHARED_CONNECTIONS 0
-
-char* filename = "data.txt";
 
 
 #define LINE_CNT_DEFAULT 1024
@@ -27,8 +26,14 @@ char* filename = "data.txt";
 #define LINE_LENGTH_DEFAULT 16
 #define LINE_LENGTH_BLOCK 8
 
+#define NUM_MY_ADDRS 0
+
 const char* host = "94.45.231.43";
-unsigned short port = 1234;
+const char* myaddrs[NUM_MY_ADDRS] = {};
+const unsigned short port = 1234;
+
+
+char* filename = "data.txt";
 
 int sockets[NUM_CONNECTIONS];
 
@@ -69,10 +74,11 @@ int main(int argc, char** argv)
 {
 	unsigned char* buffer, *line, *linetmp;
 	unsigned char** lines, **linestmp;
-	int socket_cnt, thread_cnt, i, err = 0;
+	int socket_cnt, thread_cnt, i, sockcons = 0, sockindex = 0, err = 0;
 	long* linelengths, *linelengthstmp;
 	struct sockaddr_in inaddr;
 	struct sockaddr addr;
+	struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
 	FILE* file;
 	long fsize, linenum = 0, linenum_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
 	if(argc < 2)
@@ -174,6 +180,15 @@ int main(int argc, char** argv)
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
 	inaddr.sin_port = (port & 0xFF) << 8 | ((port >> 8) & 0xFF);
 	inaddr.sin_family = AF_INET;
+	if(myaddrs)
+	{
+		for(i = 0; i < NUM_MY_ADDRS; i++)
+		{
+			inmyaddrs[i].sin_family = AF_INET;
+			inmyaddrs[i].sin_port = 0;
+			inet_pton(AF_INET, myaddrs[i], &(inmyaddrs[i].sin_addr.s_addr));
+		}
+	}
 	for(socket_cnt = 0; socket_cnt < NUM_CONNECTIONS; socket_cnt++)
 	{
 		sockets[socket_cnt] = socket(AF_INET, SOCK_STREAM, 0);
@@ -182,6 +197,21 @@ int main(int argc, char** argv)
 			err = -errno;
 			fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
 			goto socket_cleanup;
+		}
+		if(myaddrs)
+		{
+			sockcons++;
+			if(sockcons >= MAX_CONNECTIONS_PER_ADDRESS)
+			{
+				sockindex++;
+				sockcons = 0;
+			}
+			if(bind(sockets[socket_cnt], (struct sockaddr *)&inmyaddrs[sockindex], sizeof(inmyaddrs[sockindex])))
+			{
+				err = -errno;
+				fprintf(stderr, "Failed to bind socket: %s\n", strerror(errno));
+				goto socket_cleanup;
+			}
 		}
 		printf("Connecting socket %d\n", socket_cnt);
 		if((err = connect(sockets[socket_cnt], (struct sockaddr *)&inaddr, sizeof(inaddr))))
