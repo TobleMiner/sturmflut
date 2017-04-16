@@ -15,11 +15,11 @@
 
 #include "main.h"
 
-#define NUM_THREADS 16
-#define NUM_CONNECTIONS 16
+#define NUM_THREADS 100
+#define NUM_CONNECTIONS 100
 #define SHARED_CONNECTIONS 0
 
-const char* filename = "data.txt";
+char* filename = "data.txt";
 
 
 #define LINE_CNT_DEFAULT 1024
@@ -65,7 +65,7 @@ void doshutdown(int signal)
 	doexit = true;
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	unsigned char* buffer, *line, *linetmp;
 	unsigned char** lines, **linestmp;
@@ -75,6 +75,12 @@ int main()
 	struct sockaddr addr;
 	FILE* file;
 	long fsize, linenum = 0, linenum_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
+	if(argc < 2)
+	{
+		fprintf(stderr, "Please specify a file to send\n");
+		return -EINVAL;
+	}
+	filename = argv[1];
 	if(SHARED_CONNECTIONS || NUM_THREADS != NUM_CONNECTIONS)
 		return -EINVAL;
 	if(signal(SIGINT, doshutdown))
