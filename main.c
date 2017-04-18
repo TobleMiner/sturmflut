@@ -180,7 +180,7 @@ int main(int argc, char** argv)
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
 	inaddr.sin_port = htons(port);
 	inaddr.sin_family = AF_INET;
-	if(myaddrs)
+	if(NUM_MY_ADDRS)
 	{
 		for(i = 0; i < NUM_MY_ADDRS; i++)
 		{
@@ -198,7 +198,7 @@ int main(int argc, char** argv)
 			fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
 			goto socket_cleanup;
 		}
-		if(myaddrs)
+		if(NUM_MY_ADDRS)
 		{
 			sockcons++;
 			if(sockcons >= MAX_CONNECTIONS_PER_ADDRESS)
