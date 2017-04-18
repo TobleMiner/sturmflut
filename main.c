@@ -28,6 +28,12 @@
 
 #define NUM_MY_ADDRS 0
 
+#if NUM_MY_ADDRS > 0
+	#if NUM_CONNECTIONS > MAX_CONNECTIONS_PER_ADDRESS * NUM_MY_ADDRS
+		#error Too many connections for the given number of source addresses
+	#endif
+#endif
+
 const char* host = "94.45.231.43";
 const char* myaddrs[NUM_MY_ADDRS] = {};
 const unsigned short port = 1234;
