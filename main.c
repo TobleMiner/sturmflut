@@ -178,7 +178,7 @@ int main(int argc, char** argv)
 	printf("Using %ld lines per thread\n", lines_per_thread);
 
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
-	inaddr.sin_port = (port & 0xFF) << 8 | ((port >> 8) & 0xFF);
+	inaddr.sin_port = htons(port);
 	inaddr.sin_family = AF_INET;
 	if(myaddrs)
 	{
