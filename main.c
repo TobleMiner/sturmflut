@@ -20,6 +20,7 @@
 #define MAX_CONNECTIONS_PER_ADDRESS 100
 #define SHARED_CONNECTIONS 0
 
+#define IGNORE_BROKEN_PIPE 1
 
 #define LINE_CNT_DEFAULT 1024
 #define LINE_CNT_BLOCK 256
@@ -34,7 +35,7 @@
 	#endif
 #endif
 
-const char* host = "94.45.231.43";
+const char* host = "94.45.231.39";
 const char* myaddrs[NUM_MY_ADDRS] = {};
 const unsigned short port = 1234;
 
@@ -61,7 +62,9 @@ void* send_thread(void* data)
 		{
 			if((err = write(args->socket, args->lines[i], args->linelengths[i])) < 0)
 			{
-				fprintf(stderr, "Write failed: %d => %s\n", err, strerror(errno));
+				if(errno == EPIPE && IGNORE_BROKEN_PIPE)
+					continue;
+				fprintf(stderr, "Write failed after %d lines: %d => %s\n", i, errno, strerror(errno));
 				doexit = true;
 				break;
 			}
@@ -96,6 +99,11 @@ int main(int argc, char** argv)
 	if(SHARED_CONNECTIONS || NUM_THREADS != NUM_CONNECTIONS)
 		return -EINVAL;
 	if(signal(SIGINT, doshutdown))
+	{
+		fprintf(stderr, "Failed to bind signal\n");
+		return -EINVAL;
+	}
+	if(signal(SIGPIPE, SIG_IGN))
 	{
 		fprintf(stderr, "Failed to bind signal\n");
 		return -EINVAL;
@@ -139,7 +147,6 @@ int main(int argc, char** argv)
 					goto lines_cleanup;
 				}
 				lines = linestmp;
-				printf("Linelengths are @%p\n", linelengths);
 				linelengthstmp = realloc(linelengths, linenum_alloc * sizeof(long));
 				if(!linelengthstmp)
 				{
@@ -238,8 +245,10 @@ int main(int argc, char** argv)
 		pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
 	}
 
+	printf("Waiting for threads to finish\n");
 	for(i = 0; i < NUM_THREADS; i++)
 	{
+		printf("Joining thread %d\n", i);
 		pthread_join(threads[i], NULL);
 		printf("Thread %d finished\n", i);
 	}
