@@ -15,8 +15,8 @@
 
 #include "main.h"
 
-#define NUM_THREADS 100
-#define NUM_CONNECTIONS 100
+#define NUM_THREADS 1000
+#define NUM_CONNECTIONS 1000
 #define MAX_CONNECTIONS_PER_ADDRESS 100
 #define SHARED_CONNECTIONS 0
 
@@ -56,15 +56,42 @@ void* send_thread(void* data)
 	int err;
 	struct threadargs_t* args = data;
 	printf("Starting thread %d, lines @%p, lengths @%p\n", args->tid, args->lines, args->linelengths);
+reconnect:
+	if(doexit)
+		return NULL;
+	printf("Connecting socket %d\n", args->socket);
+	if((err = connect(sockets[args->socket], args->remoteaddr, sizeof(struct sockaddr_in))))
+	{
+		err = -errno;
+		fprintf(stderr, "Failed to connect socket: %s\n", strerror(errno));
+		goto newsocket;
+	}
+	printf("Connected socket %d\n", args->socket);
 	while(!doexit)
 	{
 		for(i = 0; i < args->numlines; i++)
 		{
-			if((err = write(args->socket, args->lines[i], args->linelengths[i])) < 0)
+			if((err = write(sockets[args->socket], args->lines[i], args->linelengths[i])) < 0)
 			{
 				if(errno == EPIPE && IGNORE_BROKEN_PIPE)
 					continue;
 				fprintf(stderr, "Write failed after %d lines: %d => %s\n", i, errno, strerror(errno));
+				if(errno == ECONNRESET)
+				{
+newsocket:
+					close(sockets[args->socket]);
+					shutdown(sockets[args->socket], SHUT_RDWR);
+					int one = 1;
+					setsockopt(sockets[args->socket], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
+					sockets[args->socket] = socket(AF_INET, SOCK_STREAM, 0);
+					if((err = sockets[args->socket]) < 0)
+					{
+						printf("Failed to create socket: %d\n", err);
+						doexit = true;
+						return NULL;
+					}
+					goto reconnect;
+				}
 				doexit = true;
 				break;
 			}
@@ -226,7 +253,7 @@ int main(int argc, char** argv)
 				goto socket_cleanup;
 			}
 		}
-		printf("Connecting socket %d\n", socket_cnt);
+/*		printf("Connecting socket %d\n", socket_cnt);
 		if((err = connect(sockets[socket_cnt], (struct sockaddr *)&inaddr, sizeof(inaddr))))
 		{
 			err = -errno;
@@ -234,14 +261,15 @@ int main(int argc, char** argv)
 			goto socket_cleanup;
 		}
 		printf("Connected socket %d\n", socket_cnt);
-	}
+*/	}
 	for(thread_cnt = 0; thread_cnt < NUM_THREADS; thread_cnt++)
 	{
-		threadargs[thread_cnt].socket = sockets[thread_cnt % socket_cnt];
+		threadargs[thread_cnt].socket = thread_cnt % socket_cnt;
 		threadargs[thread_cnt].tid = thread_cnt;
 		threadargs[thread_cnt].numlines = lines_per_thread;
 		threadargs[thread_cnt].lines = lines + lines_per_thread * thread_cnt;
 		threadargs[thread_cnt].linelengths = linelengths + lines_per_thread * thread_cnt;
+		threadargs[thread_cnt].remoteaddr = &inaddr;
 		pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
 	}
 
