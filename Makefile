@@ -1,10 +1,11 @@
 CC=gcc
-RM=rm
+CCFLAGS=-o3 -Wall
+RM=rm -f
 
-all: sturmflut
+all: clean sturmflut
 
 sturmflut:
-	$(CC) main.c -lpthread -o sturmflut
+	$(CC) $(CCFLAGS) main.c -lpthread -o sturmflut
 
 clean:
 	$(RM) sturmflut
