@@ -247,7 +247,7 @@ int main(int argc, char** argv)
 		threadargs[thread_cnt].numlines = lines_per_thread;
 		threadargs[thread_cnt].lines = lines + lines_per_thread * thread_cnt;
 		threadargs[thread_cnt].linelengths = linelengths + lines_per_thread * thread_cnt;
-		threadargs[thread_cnt].remoteaddr = &inaddr;
+		threadargs[thread_cnt].remoteaddr = (struct sockaddr*)&inaddr;
 		pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
 	}
 
@@ -260,7 +260,7 @@ int main(int argc, char** argv)
 	}
 	err = 0;
 
-socket_cleanup:
+//socket_cleanup:
 	for(i = 0; i < NUM_THREADS; i++)
 	{
 		if(!sockets[i])
@@ -278,7 +278,7 @@ lines_cleanup:
 	}
 	free(lines);
 	free(linelengths);
-memory_cleanup:
+//memory_cleanup:
 	free(buffer);
 file_cleanup:
 	fclose(file);
