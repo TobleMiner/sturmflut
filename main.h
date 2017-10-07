@@ -6,6 +6,7 @@ typedef struct threadargs_t {
 	int socket;
 	unsigned char** lines;
 	long* linelengths;
+	struct sockaddr* remoteaddr;
 	long numlines;
 } threadargs_t;
 #endif

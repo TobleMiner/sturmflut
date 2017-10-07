@@ -15,8 +15,7 @@
 
 #include "main.h"
 
-#define NUM_THREADS 100
-#define NUM_CONNECTIONS 100
+#define NUM_THREADS 10
 #define MAX_CONNECTIONS_PER_ADDRESS 100
 #define SHARED_CONNECTIONS 0
 
@@ -30,7 +29,7 @@
 #define NUM_MY_ADDRS 0
 
 #if NUM_MY_ADDRS > 0
-	#if NUM_CONNECTIONS > MAX_CONNECTIONS_PER_ADDRESS * NUM_MY_ADDRS
+	#if NUM_THREADS > MAX_CONNECTIONS_PER_ADDRESS * NUM_MY_ADDRS
 		#error Too many connections for the given number of source addresses
 	#endif
 #endif
@@ -42,9 +41,9 @@ const unsigned short port = 1234;
 
 char* filename = "data.txt";
 
-int sockets[NUM_CONNECTIONS];
-
+int sockets[NUM_THREADS];
 pthread_t threads[NUM_THREADS];
+struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
 
 struct threadargs_t threadargs[NUM_THREADS];
 
@@ -56,15 +55,46 @@ void* send_thread(void* data)
 	int err;
 	struct threadargs_t* args = data;
 	printf("Starting thread %d, lines @%p, lengths @%p\n", args->tid, args->lines, args->linelengths);
+reconnect:
+	if(doexit)
+		return NULL;
+	sockets[args->socket] = socket(AF_INET, SOCK_STREAM, 0);
+	if((err = sockets[args->socket]) < 0)
+	{
+		printf("Failed to create socket %d: %d\n", args->socket, err);
+		goto fail;
+	}
+	if(NUM_MY_ADDRS)
+	{
+		int addrindex = args->tid / MAX_CONNECTIONS_PER_ADDRESS;
+		if(bind(sockets[args->socket], (struct sockaddr *)&inmyaddrs[addrindex], sizeof(inmyaddrs[addrindex])))
+		{
+			err = -errno;
+			fprintf(stderr, "Failed to bind socket %d: %s\n", args->socket, strerror(errno));
+			goto fail;
+		}
+	}
+	printf("Connecting socket %d\n", args->socket);
+	if((err = connect(sockets[args->socket], args->remoteaddr, sizeof(struct sockaddr_in))))
+	{
+		err = -errno;
+		fprintf(stderr, "Failed to connect socket: %s\n", strerror(errno));
+		goto newsocket;
+	}
+	printf("Connected socket %d\n", args->socket);
 	while(!doexit)
 	{
 		for(i = 0; i < args->numlines; i++)
 		{
-			if((err = write(args->socket, args->lines[i], args->linelengths[i])) < 0)
+			if((err = write(sockets[args->socket], args->lines[i], args->linelengths[i])) < 0)
 			{
 				if(errno == EPIPE && IGNORE_BROKEN_PIPE)
 					continue;
-				fprintf(stderr, "Write failed after %d lines: %d => %s\n", i, errno, strerror(errno));
+				fprintf(stderr, "Write failed after %ld lines: %d => %s\n", i, errno, strerror(errno));
+				if(errno == ECONNRESET)
+				{
+					goto newsocket;
+				}
 				doexit = true;
 				break;
 			}
@@ -72,6 +102,15 @@ void* send_thread(void* data)
 	}
 
 	return NULL;
+fail:
+	doexit = true;
+	return NULL;
+newsocket:
+	close(sockets[args->socket]);
+	shutdown(sockets[args->socket], SHUT_RDWR);
+	int one = 1;
+	setsockopt(sockets[args->socket], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
+	goto reconnect;
 }
 
 void doshutdown(int signal)
@@ -83,11 +122,9 @@ int main(int argc, char** argv)
 {
 	unsigned char* buffer, *line, *linetmp;
 	unsigned char** lines, **linestmp;
-	int socket_cnt, thread_cnt, i, sockcons = 0, sockindex = 0, err = 0;
+	int thread_cnt, i, err = 0;
 	long* linelengths, *linelengthstmp;
 	struct sockaddr_in inaddr;
-	struct sockaddr addr;
-	struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
 	FILE* file;
 	long fsize, linenum = 0, linenum_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
 	if(argc < 2)
@@ -96,7 +133,7 @@ int main(int argc, char** argv)
 		return -EINVAL;
 	}
 	filename = argv[1];
-	if(SHARED_CONNECTIONS || NUM_THREADS != NUM_CONNECTIONS)
+	if(SHARED_CONNECTIONS || NUM_THREADS != NUM_THREADS)
 		return -EINVAL;
 	if(signal(SIGINT, doshutdown))
 	{
@@ -142,7 +179,7 @@ int main(int argc, char** argv)
 				linestmp = realloc(lines, linenum_alloc * sizeof(unsigned char*));
 				if(!linestmp)
 				{
-					fprintf(stderr, "Allocation of %d lines failed, offset %d\n", LINE_CNT_BLOCK, linenum_alloc - LINE_CNT_BLOCK);
+					fprintf(stderr, "Allocation of %d lines failed, offset %ld\n", LINE_CNT_BLOCK, linenum_alloc - LINE_CNT_BLOCK);
 					err = -ENOMEM;
 					goto lines_cleanup;
 				}
@@ -202,46 +239,15 @@ int main(int argc, char** argv)
 			inet_pton(AF_INET, myaddrs[i], &(inmyaddrs[i].sin_addr.s_addr));
 		}
 	}
-	for(socket_cnt = 0; socket_cnt < NUM_CONNECTIONS; socket_cnt++)
-	{
-		sockets[socket_cnt] = socket(AF_INET, SOCK_STREAM, 0);
-		if((err = sockets[socket_cnt]) < 0)
-		{
-			err = -errno;
-			fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
-			goto socket_cleanup;
-		}
-		if(NUM_MY_ADDRS)
-		{
-			sockcons++;
-			if(sockcons >= MAX_CONNECTIONS_PER_ADDRESS)
-			{
-				sockindex++;
-				sockcons = 0;
-			}
-			if(bind(sockets[socket_cnt], (struct sockaddr *)&inmyaddrs[sockindex], sizeof(inmyaddrs[sockindex])))
-			{
-				err = -errno;
-				fprintf(stderr, "Failed to bind socket: %s\n", strerror(errno));
-				goto socket_cleanup;
-			}
-		}
-		printf("Connecting socket %d\n", socket_cnt);
-		if((err = connect(sockets[socket_cnt], (struct sockaddr *)&inaddr, sizeof(inaddr))))
-		{
-			err = -errno;
-			fprintf(stderr, "Failed to connect socket: %s\n", strerror(errno));
-			goto socket_cleanup;
-		}
-		printf("Connected socket %d\n", socket_cnt);
-	}
+	memset(sockets, 0, NUM_THREADS * sizeof(int));
 	for(thread_cnt = 0; thread_cnt < NUM_THREADS; thread_cnt++)
 	{
-		threadargs[thread_cnt].socket = sockets[thread_cnt % socket_cnt];
+		threadargs[thread_cnt].socket = thread_cnt;
 		threadargs[thread_cnt].tid = thread_cnt;
 		threadargs[thread_cnt].numlines = lines_per_thread;
 		threadargs[thread_cnt].lines = lines + lines_per_thread * thread_cnt;
 		threadargs[thread_cnt].linelengths = linelengths + lines_per_thread * thread_cnt;
+		threadargs[thread_cnt].remoteaddr = &inaddr;
 		pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
 	}
 
@@ -255,12 +261,14 @@ int main(int argc, char** argv)
 	err = 0;
 
 socket_cleanup:
-	while(socket_cnt-- >= 0)
+	for(i = 0; i < NUM_THREADS; i++)
 	{
-		close(sockets[socket_cnt]);
-		shutdown(sockets[socket_cnt], SHUT_RDWR);
+		if(!sockets[i])
+			continue;
+		close(sockets[i]);
+		shutdown(sockets[i], SHUT_RDWR);
 		int one = 1;
-		setsockopt(sockets[socket_cnt], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
+		setsockopt(sockets[i], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
 	}
 lines_cleanup:
 	while(linenum >= 0)
