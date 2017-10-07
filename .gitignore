@@ -1,0 +1,5 @@
+.*
+!.gitignore
+*.txt
+sturmflut
+*.out
