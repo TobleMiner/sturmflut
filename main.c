@@ -207,7 +207,7 @@ int main(int argc, char** argv)
 			linepos++;
 		if(linepos == linepos_alloc)
 		{
-			linepos_alloc += LINE_LENGTH_DEFAULT;
+			linepos_alloc += LINE_LENGTH_BLOCK;
 			linetmp = realloc(line, linepos_alloc);
 			if(!linetmp)
 			{
