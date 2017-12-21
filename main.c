@@ -194,6 +194,7 @@ int main(int argc, char** argv)
 				linelengths = linelengthstmp;
 			}
 			line = malloc(LINE_LENGTH_DEFAULT);
+			linepos_alloc = LINE_LENGTH_DEFAULT;
 			if(!line)
 			{
 				fprintf(stderr, "Failed to allocate line\n");
