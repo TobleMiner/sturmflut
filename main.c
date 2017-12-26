@@ -12,14 +12,17 @@
 #include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <getopt.h>
 
 #include "main.h"
 
-#define NUM_THREADS 10
+#define NUM_THREADS_DEFAULT 10
 #define MAX_CONNECTIONS_PER_ADDRESS 100
 #define SHARED_CONNECTIONS 0
 
-#define IGNORE_BROKEN_PIPE 1
+#define IGNORE_BROKEN_PIPE_DEFAULT 1
+#define PORT_DEFAULT 1234
 
 #define LINE_CNT_DEFAULT 1024
 #define LINE_CNT_BLOCK 256
@@ -28,24 +31,20 @@
 
 #define NUM_MY_ADDRS 0
 
-#if NUM_MY_ADDRS > 0
+/*#if NUM_MY_ADDRS > 0
 	#if NUM_THREADS > MAX_CONNECTIONS_PER_ADDRESS * NUM_MY_ADDRS
 		#error Too many connections for the given number of source addresses
 	#endif
 #endif
+*/
 
-const char* host = "94.45.231.39";
 const char* myaddrs[NUM_MY_ADDRS] = {};
-const unsigned short port = 1234;
 
+int ignore_broken_pipe = IGNORE_BROKEN_PIPE_DEFAULT;
 
 char* filename = "data.txt";
 
-int sockets[NUM_THREADS];
-pthread_t threads[NUM_THREADS];
 struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
-
-struct threadargs_t threadargs[NUM_THREADS];
 
 bool doexit = false;
 
@@ -58,8 +57,8 @@ void* send_thread(void* data)
 reconnect:
 	if(doexit)
 		return NULL;
-	sockets[args->socket] = socket(AF_INET, SOCK_STREAM, 0);
-	if((err = sockets[args->socket]) < 0)
+	args->sockets[args->socket] = socket(AF_INET, SOCK_STREAM, 0);
+	if((err = args->sockets[args->socket]) < 0)
 	{
 		printf("Failed to create socket %d: %d\n", args->socket, err);
 		goto fail;
@@ -67,7 +66,7 @@ reconnect:
 	if(NUM_MY_ADDRS)
 	{
 		int addrindex = args->tid / MAX_CONNECTIONS_PER_ADDRESS;
-		if(bind(sockets[args->socket], (struct sockaddr *)&inmyaddrs[addrindex], sizeof(inmyaddrs[addrindex])))
+		if(bind(args->sockets[args->socket], (struct sockaddr *)&inmyaddrs[addrindex], sizeof(inmyaddrs[addrindex])))
 		{
 			err = -errno;
 			fprintf(stderr, "Failed to bind socket %d: %s\n", args->socket, strerror(errno));
@@ -75,7 +74,7 @@ reconnect:
 		}
 	}
 	printf("Connecting socket %d\n", args->socket);
-	if((err = connect(sockets[args->socket], args->remoteaddr, sizeof(struct sockaddr_in))))
+	if((err = connect(args->sockets[args->socket], args->remoteaddr, sizeof(struct sockaddr_in))))
 	{
 		err = -errno;
 		fprintf(stderr, "Failed to connect socket: %s\n", strerror(errno));
@@ -86,9 +85,9 @@ reconnect:
 	{
 		for(i = 0; i < args->numlines; i++)
 		{
-			if((err = write(sockets[args->socket], args->lines[i], args->linelengths[i])) < 0)
+			if((err = write(args->sockets[args->socket], args->lines[i], args->linelengths[i])) < 0)
 			{
-				if(errno == EPIPE && IGNORE_BROKEN_PIPE)
+				if(errno == EPIPE && ignore_broken_pipe)
 					continue;
 				fprintf(stderr, "Write failed after %ld lines: %d => %s\n", i, errno, strerror(errno));
 				if(errno == ECONNRESET)
@@ -106,10 +105,10 @@ fail:
 	doexit = true;
 	return NULL;
 newsocket:
-	close(sockets[args->socket]);
-	shutdown(sockets[args->socket], SHUT_RDWR);
+	close(args->sockets[args->socket]);
+	shutdown(args->sockets[args->socket], SHUT_RDWR);
 	int one = 1;
-	setsockopt(sockets[args->socket], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
+	setsockopt(args->sockets[args->socket], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
 	goto reconnect;
 }
 
@@ -118,23 +117,65 @@ void doshutdown(int signal)
 	doexit = true;
 }
 
+void print_usage(char* binary) {
+	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] [-i <0|1>] [-t <number of threads]]\n", binary);
+}
+
 int main(int argc, char** argv)
 {
 	unsigned char* buffer, *line, *linetmp;
 	unsigned char** lines, **linestmp;
-	int thread_cnt, i, err = 0;
+	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0;
 	long* linelengths, *linelengthstmp;
 	struct sockaddr_in inaddr;
 	FILE* file;
 	long fsize, linenum = 0, linenum_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
-	if(argc < 2)
-	{
-		fprintf(stderr, "Please specify a file to send\n");
+	char opt, *host;
+	unsigned short port = PORT_DEFAULT;
+	int* sockets;
+	pthread_t* threads;
+	struct threadargs_t* threadargs;
+
+
+	while((opt = getopt(argc, argv, "p:it:")) != -1) {
+		switch(opt) {
+			case('p'):
+				port = (unsigned short)strtoul(optarg, NULL, 10);
+				break;
+			case('i'):
+				ignore_broken_pipe = atoi(optarg);
+				break;
+			case('t'):
+				num_threads = atoi(optarg);
+				if(num_threads < 1) {
+					fprintf(stderr, "Number of threads must be > 0\n");
+					print_usage(argv[0]);
+					exit(1);
+				}
+				break;
+			default:
+				print_usage(argv[0]);
+				exit(1);
+		}
+	}
+
+	if(optind >= argc) {
+		fprintf(stderr, "Please specify a host to send to\n");
+		print_usage(argv[0]);
 		return -EINVAL;
 	}
-	filename = argv[1];
-	if(SHARED_CONNECTIONS || NUM_THREADS != NUM_THREADS)
+
+	host = argv[optind++];
+
+	if(optind < argc) {
+		filename = argv[optind];
+	}
+
+	printf("Sending '%s' to %s:%u\n", filename, host, port);
+
+	if(SHARED_CONNECTIONS)
 		return -EINVAL;
+
 	if(signal(SIGINT, doshutdown))
 	{
 		fprintf(stderr, "Failed to bind signal\n");
@@ -145,10 +186,18 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Failed to bind signal\n");
 		return -EINVAL;
 	}
+
+	sockets = malloc(num_threads * sizeof(int));
+	if(!sockets) {
+		fprintf(stderr, "Failed to allocate memory for socket handles\n");
+		return -ENOMEM;
+	}
+
 	if(!(file = fopen(filename, "r")))
 	{
 		fprintf(stderr, "Failed to open file: %d\n", errno);
-		return -errno;
+		err = -errno;
+		goto socket_cleanup;
 	}
 	fseek(file, 0, SEEK_END);
 	fsize = ftell(file);
@@ -225,7 +274,7 @@ int main(int argc, char** argv)
 	linelengths[linenum] = linepos + 1;
 	printf("Got %ld instructions\n", linenum);
 
-	lines_per_thread = linenum / NUM_THREADS;
+	lines_per_thread = linenum / num_threads;
 	printf("Using %ld lines per thread\n", lines_per_thread);
 
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
@@ -240,9 +289,24 @@ int main(int argc, char** argv)
 			inet_pton(AF_INET, myaddrs[i], &(inmyaddrs[i].sin_addr.s_addr));
 		}
 	}
-	memset(sockets, 0, NUM_THREADS * sizeof(int));
-	for(thread_cnt = 0; thread_cnt < NUM_THREADS; thread_cnt++)
+	memset(sockets, 0, num_threads * sizeof(int));
+
+	threads = malloc(num_threads * sizeof(pthread_t));
+	printf("Thread handles: %p\n", threads);
+	if(!threads) {
+		fprintf(stderr, "Failed to allocate memory for thread handles\n");
+		goto lines_cleanup;
+	}
+
+	threadargs = malloc(num_threads * sizeof(struct threadargs_t));
+	if(!threadargs) {
+		fprintf(stderr, "Failed to allocate memory for threadargs\n");
+		goto thread_cleanup;
+	}
+
+	for(thread_cnt = 0; thread_cnt < num_threads; thread_cnt++)
 	{
+		threadargs[thread_cnt].sockets = sockets;
 		threadargs[thread_cnt].socket = thread_cnt;
 		threadargs[thread_cnt].tid = thread_cnt;
 		threadargs[thread_cnt].numlines = lines_per_thread;
@@ -253,7 +317,7 @@ int main(int argc, char** argv)
 	}
 
 	printf("Waiting for threads to finish\n");
-	for(i = 0; i < NUM_THREADS; i++)
+	for(i = 0; i < num_threads; i++)
 	{
 		printf("Joining thread %d\n", i);
 		pthread_join(threads[i], NULL);
@@ -261,16 +325,10 @@ int main(int argc, char** argv)
 	}
 	err = 0;
 
-//socket_cleanup:
-	for(i = 0; i < NUM_THREADS; i++)
-	{
-		if(!sockets[i])
-			continue;
-		close(sockets[i]);
-		shutdown(sockets[i], SHUT_RDWR);
-		int one = 1;
-		setsockopt(sockets[i], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
-	}
+threadargs_cleanup:
+	free(threadargs);
+thread_cleanup:
+	free(threads);
 lines_cleanup:
 	while(linenum >= 0)
 	{
@@ -283,5 +341,16 @@ lines_cleanup:
 	free(buffer);
 file_cleanup:
 	fclose(file);
+socket_cleanup:
+	for(i = 0; i < num_threads; i++)
+	{
+		if(!sockets[i])
+			continue;
+		close(sockets[i]);
+		shutdown(sockets[i], SHUT_RDWR);
+		int one = 1;
+		setsockopt(sockets[i], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
+	}
+	free(sockets);
 	return err;
 }
