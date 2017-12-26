@@ -118,7 +118,7 @@ void doshutdown(int signal)
 }
 
 void print_usage(char* binary) {
-	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] [-i <0|1>] [-t <number of threads]]\n", binary);
+	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] [-i <0|1>] [-t <number of threads>] [-h]\n", binary);
 }
 
 int main(int argc, char** argv)
@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 	struct threadargs_t* threadargs;
 
 
-	while((opt = getopt(argc, argv, "p:it:")) != -1) {
+	while((opt = getopt(argc, argv, "p:it:h")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = (unsigned short)strtoul(optarg, NULL, 10);
