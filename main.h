@@ -5,9 +5,9 @@ typedef struct threadargs_t {
 	int tid;
 	int socket;
 	int* sockets;
-	unsigned char** lines;
-	long* linelengths;
+	FILE* file;
+	off_t offset;
+	size_t length;
 	struct sockaddr* remoteaddr;
-	long numlines;
 } threadargs_t;
 #endif

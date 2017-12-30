@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <sys/sendfile.h>
 
 #include "main.h"
 
@@ -53,7 +54,7 @@ void* send_thread(void* data)
 	long i = 0;
 	int err;
 	struct threadargs_t* args = data;
-	printf("Starting thread %d, lines @%p, lengths @%p\n", args->tid, args->lines, args->linelengths);
+	printf("Starting thread %d, length %zd, offset @%zd\n", args->tid, args->length, args->offset);
 reconnect:
 	if(doexit)
 		return NULL;
@@ -83,20 +84,19 @@ reconnect:
 	printf("Connected socket %d\n", args->socket);
 	while(!doexit)
 	{
-		for(i = 0; i < args->numlines; i++)
+		fseek(args->file, args->offset, SEEK_SET);
+		printf("Sendfileing %zd bytes\n", args->length);
+		if((err = sendfile(args->sockets[args->socket], fileno(args->file), NULL, args->length)) < 0)
 		{
-			if((err = write(args->sockets[args->socket], args->lines[i], args->linelengths[i])) < 0)
+			if(errno == EPIPE && ignore_broken_pipe)
+				continue;
+			fprintf(stderr, "Write failed after %ld lines: %d => %s\n", i, errno, strerror(errno));
+			if(errno == ECONNRESET)
 			{
-				if(errno == EPIPE && ignore_broken_pipe)
-					continue;
-				fprintf(stderr, "Write failed after %ld lines: %d => %s\n", i, errno, strerror(errno));
-				if(errno == ECONNRESET)
-				{
-					goto newsocket;
-				}
-				doexit = true;
-				break;
+				goto newsocket;
 			}
+			doexit = true;
+			break;
 		}
 	}
 
@@ -126,15 +126,16 @@ int main(int argc, char** argv)
 	unsigned char* buffer, *line, *linetmp;
 	unsigned char** lines, **linestmp;
 	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0;
-	long* linelengths, *linelengthstmp;
+	off_t* lineofftmp, *line_offsets;
 	struct sockaddr_in inaddr;
 	FILE* file;
-	long fsize, linenum = 0, linenum_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
+	long fsize, linenum = 0, lineoff_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
 	char opt, *host;
 	unsigned short port = PORT_DEFAULT;
 	int* sockets;
 	pthread_t* threads;
 	struct threadargs_t* threadargs;
+	off_t current_offset = 0;
 
 
 	while((opt = getopt(argc, argv, "p:it:h")) != -1) {
@@ -209,69 +210,36 @@ int main(int argc, char** argv)
 	}
 	fread(buffer, fsize, 1, file);
 	printf("Read %ld bytes of data to memory, counting instructions\n", fsize);
-	lines = malloc(LINE_CNT_DEFAULT * sizeof(unsigned char*));
-	linenum_alloc = LINE_CNT_DEFAULT;
-	line = malloc(LINE_LENGTH_DEFAULT);
-	linepos_alloc = LINE_LENGTH_DEFAULT;
-	linelengths = malloc(LINE_CNT_DEFAULT * sizeof(long));
+
+	line_offsets = malloc(LINE_LENGTH_DEFAULT * sizeof(off_t));
+	lineoff_alloc = LINE_LENGTH_DEFAULT;
 	while(fpos < fsize)
 	{
-		line[linepos] = buffer[fpos];
+		if(linepos == 0)
+			line_offsets[linenum] = fpos;
+			
 		if(buffer[fpos] == '\n')
 		{
-			linelengths[linenum] = linepos + 1;
-			lines[linenum] = line;
 			linenum++;
-			if(linenum == linenum_alloc)
+			if(linenum == lineoff_alloc)
 			{
-				linenum_alloc += LINE_CNT_BLOCK;
-				linestmp = realloc(lines, linenum_alloc * sizeof(unsigned char*));
-				if(!linestmp)
+				lineoff_alloc += LINE_CNT_BLOCK;
+				lineofftmp = realloc(line_offsets, lineoff_alloc * sizeof(off_t));
+				if(!lineofftmp)
 				{
-					fprintf(stderr, "Allocation of %d lines failed, offset %ld\n", LINE_CNT_BLOCK, linenum_alloc - LINE_CNT_BLOCK);
+					fprintf(stderr, "Allocation of %d line offsets failed\n", LINE_CNT_BLOCK);
 					err = -ENOMEM;
 					goto lines_cleanup;
 				}
-				lines = linestmp;
-				linelengthstmp = realloc(linelengths, linenum_alloc * sizeof(long));
-				if(!linelengthstmp)
-				{
-					fprintf(stderr, "Allocation of %d line lengths failed\n", LINE_CNT_BLOCK);
-					err = -ENOMEM;
-					goto lines_cleanup;
-				}
-				linelengths = linelengthstmp;
+				line_offsets = lineofftmp;
 			}
-			line = malloc(LINE_LENGTH_DEFAULT);
-			linepos_alloc = LINE_LENGTH_DEFAULT;
-			if(!line)
-			{
-				fprintf(stderr, "Failed to allocate line\n");
-				err = -ENOMEM;
-				goto lines_cleanup;
-			}
-			lines[linenum] = line;
 			linepos = 0;
 		}
 		else
 			linepos++;
-		if(linepos == linepos_alloc)
-		{
-			linepos_alloc += LINE_LENGTH_BLOCK;
-			linetmp = realloc(line, linepos_alloc);
-			if(!linetmp)
-			{
-				fprintf(stderr, "Failed to allocate line with length %ld\n", linepos_alloc);
-				err = -ENOMEM;
-				goto lines_cleanup;
-			}
-			line = linetmp;
-			lines[linenum] = line;
-		}
 		fpos++;
 	}
-	line[linepos] = buffer[fpos];
-	linelengths[linenum] = linepos + 1;
+	line_offsets[linenum] = fpos;
 	printf("Got %ld instructions\n", linenum);
 
 	lines_per_thread = linenum / num_threads;
@@ -309,10 +277,14 @@ int main(int argc, char** argv)
 		threadargs[thread_cnt].sockets = sockets;
 		threadargs[thread_cnt].socket = thread_cnt;
 		threadargs[thread_cnt].tid = thread_cnt;
-		threadargs[thread_cnt].numlines = lines_per_thread;
-		threadargs[thread_cnt].lines = lines + lines_per_thread * thread_cnt;
-		threadargs[thread_cnt].linelengths = linelengths + lines_per_thread * thread_cnt;
+		threadargs[thread_cnt].offset = line_offsets[lines_per_thread * thread_cnt];
+		threadargs[thread_cnt].length = line_offsets[lines_per_thread * (thread_cnt + 1)] - line_offsets[lines_per_thread * thread_cnt];
 		threadargs[thread_cnt].remoteaddr = (struct sockaddr*)&inaddr;
+		threadargs[thread_cnt].file = fopen(filename, "r");
+		if(!threadargs[thread_cnt].file) {
+			printf("Failed to open file for thread %d\n", thread_cnt);
+			goto thread_file_cleanup;
+		}
 		pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
 	}
 
@@ -325,18 +297,16 @@ int main(int argc, char** argv)
 	}
 	err = 0;
 
+thread_file_cleanup:
+	while(thread_cnt-- > 0) {
+		fclose(threadargs[thread_cnt].file);
+	}
 threadargs_cleanup:
 	free(threadargs);
 thread_cleanup:
 	free(threads);
 lines_cleanup:
-	while(linenum >= 0)
-	{
-		free(lines[linenum]);
-		linenum--;
-	}
-	free(lines);
-	free(linelengths);
+	free(line_offsets);
 //memory_cleanup:
 	free(buffer);
 file_cleanup:
