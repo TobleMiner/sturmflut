@@ -127,19 +127,17 @@ void print_usage(char* binary) {
 
 int main(int argc, char** argv)
 {
-	unsigned char* buffer, *line, *linetmp;
-	unsigned char** lines, **linestmp;
+	unsigned char* buffer;
 	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0;
 	off_t* lineofftmp, *line_offsets;
 	struct sockaddr_in inaddr;
 	FILE* file;
-	long fsize, linenum = 0, lineoff_alloc, linepos = 0, linepos_alloc, fpos = 0, lines_per_thread;
+	long fsize, linenum = 0, lineoff_alloc, linepos = 0, fpos = 0, lines_per_thread;
 	char opt, *host;
 	unsigned short port = PORT_DEFAULT;
 	int* sockets;
 	pthread_t* threads;
 	struct threadargs_t* threadargs;
-	off_t current_offset = 0;
 
 
 	while((opt = getopt(argc, argv, "p:it:h")) != -1) {
