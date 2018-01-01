@@ -53,6 +53,7 @@ void* send_thread(void* data)
 {
 	long i = 0;
 	int err;
+	off_t offset;
 	struct threadargs_t* args = data;
 	printf("Starting thread %d, length %zd, offset @%zd\n", args->tid, args->length, args->offset);
 reconnect:
@@ -84,21 +85,24 @@ reconnect:
 	printf("Connected socket %d\n", args->socket);
 	while(!doexit)
 	{
-		fseek(args->file, args->offset, SEEK_SET);
-		printf("Sendfileing %zd bytes\n", args->length);
-		if((err = sendfile(args->sockets[args->socket], fileno(args->file), NULL, args->length)) < 0)
-		{
-			if(errno == EPIPE && ignore_broken_pipe)
-				continue;
-			fprintf(stderr, "Write failed after %ld lines: %d => %s\n", i, errno, strerror(errno));
-			if(errno == ECONNRESET)
+		offset = args->offset;
+		while((offset - args->offset) < args->length) {
+			printf("Sendfileing %zd bytes, offset %zd\n", args->length - (offset - args->offset), offset);
+			i++;
+			if((err = sendfile(args->sockets[args->socket], fileno(args->file), &offset, args->length - (offset - args->offset))) < 0)
 			{
-				goto newsocket;
+				if(errno == EPIPE && ignore_broken_pipe)
+					continue;
+
+				fprintf(stderr, "Write failed after %ld sendfiles: %d => %s\n", i, errno, strerror(errno));
+				if(errno == ECONNRESET)
+					goto newsocket;
+
+				goto fail;
 			}
-			doexit = true;
-			break;
 		}
 	}
+
 
 	return NULL;
 fail:
