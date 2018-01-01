@@ -1,5 +1,5 @@
 CC=gcc
-CCFLAGS=-o3 -Wall
+CCFLAGS=-O3 -Wall
 RM=rm -f
 
 all: clean sturmflut
