@@ -1,6 +1,11 @@
 Sturmflut
 =========
 
+** IMPORTANT **
+
+This version of sturmflut uses the sendfile syscall to achieve very high speeds but many pixelflut implementations are flawed and do not work well with sendfile.
+Please check out the [slowwrite](https://github.com/TobleMiner/sturmflut/tree/slowwrite) branch if you are experiencing issues.
+
 # Compiling
 
 Use ```make```.
