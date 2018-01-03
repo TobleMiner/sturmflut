@@ -2,6 +2,7 @@ Sturmflut
 =========
 
 ** IMPORTANT **
+
 This is the slowwrite variant of Sturmflut. It does not use sendfile and offers higher compatibility with a wider range of pixelflut server implementations but is a lot (~5 times)
 slower that the sendfile version. You can find the sendfile version in the [master](https://github.com/TobleMiner/sturmflut/tree/master) branch.
 
