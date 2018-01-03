@@ -5,7 +5,7 @@ Sturmflut
 
 This version of sturmflut uses the sendfile syscall to achieve very high speeds but many pixelflut implementations are flawed and do not work well with sendfile.
 Please check out the [slowwrite](https://github.com/TobleMiner/sturmflut/tree/slowwrite) branch if you are experiencing issues. If you are searching for a nice
-pixelflut server check out [shoreline](https://github.com/TobleMiner/shoreline) a super fast pixelflut server written in C.
+pixelflut server check out [shoreline](https://github.com/TobleMiner/shoreline), a super fast pixelflut server written in C.
 
 # Compiling
 
