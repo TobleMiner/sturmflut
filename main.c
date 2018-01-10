@@ -47,10 +47,19 @@ char* filename = FILENAME_DEFAULT;
 
 struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
 
-bool doexit = false;
+pthread_t* threads;
+int thread_cnt = 0;
 
-void* send_thread(void* data)
-{
+void doshutdown(int signal) {
+	int i = thread_cnt;
+	while(i-- > 0) {
+		pthread_cancel(threads[i]);
+	}
+}
+
+
+
+void* send_thread(void* data) {
 	long i = 0;
 	int err;
 	off_t offset, send_offset;
@@ -58,8 +67,6 @@ void* send_thread(void* data)
 	ssize_t send_size;
 	printf("Starting thread %d, length %zd, offset @%zd\n", args->tid, args->length, args->offset);
 reconnect:
-	if(doexit)
-		return NULL;
 	args->sockets[args->socket] = socket(AF_INET, SOCK_STREAM, 0);
 	if((err = args->sockets[args->socket]) < 0)
 	{
@@ -85,7 +92,7 @@ reconnect:
 	}
 	printf("Connected socket %d\n", args->socket);
 	if(args->method == TX_METHOD_SENDFILE) {
-		while(!doexit) {
+		while(true) {
 			offset = args->offset;
 			while((offset - args->offset) < args->length) {
 				printf("Sendfileing %zd bytes, offset %zd\n", args->length - (offset - args->offset), offset);
@@ -104,7 +111,7 @@ reconnect:
 			}
 		}
 	} else {
-		while(!doexit) {
+		while(true) {
 			send_offset = 0;
 			while(send_offset < args->length) {
 				if((send_size = write(args->sockets[args->socket], args->buffer + args->offset + send_offset, args->length - send_offset)) < 0) {
@@ -116,8 +123,7 @@ reconnect:
 					if(errno == ECONNRESET) {
 						goto newsocket;
 					}
-					doexit = true;
-					break;
+					goto fail;
 				}
 				send_offset += send_size;
 			}
@@ -127,7 +133,7 @@ reconnect:
 
 	return NULL;
 fail:
-	doexit = true;
+	doshutdown(SIGKILL);
 	return NULL;
 newsocket:
 	close(args->sockets[args->socket]);
@@ -137,11 +143,6 @@ newsocket:
 	goto reconnect;
 }
 
-void doshutdown(int signal)
-{
-	doexit = true;
-}
-
 void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
 			"[-i <0|1>] [-t <number of threads>] [-m <%d|%d>] [-h]\n", binary, TX_METHOD_SENDFILE, TX_METHOD_SEND);
@@ -149,14 +150,13 @@ void print_usage(char* binary) {
 
 int main(int argc, char** argv)
 {
-	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0, method = METHOD_DEFAULT;
+	int num_threads = NUM_THREADS_DEFAULT, i, err = 0, method = METHOD_DEFAULT;
 	struct sockaddr_in inaddr;
 	FILE* file;
 	long fsize, linepos = 0, fpos = 0, cmds_per_thread, commands_alloc, cmd_num = 0;
 	char opt, *host, *buffer;
 	unsigned short port = PORT_DEFAULT;
 	int* sockets;
-	pthread_t* threads;
 	struct threadargs_t* threadargs;
 	struct pf_cmd* commands, *commandstmp, *cmd_current;
 
@@ -350,11 +350,12 @@ int main(int argc, char** argv)
 	err = 0;
 
 thread_file_cleanup:
-	while(thread_cnt-- > 0) {
-		if(threadargs[thread_cnt].file == NULL) {
+	i = thread_cnt;
+	while(i-- > 0) {
+		if(threadargs[i].file == NULL) {
 			continue;
 		}
-		fclose(threadargs[thread_cnt].file);
+		fclose(threadargs[i].file);
 	}
 //threadargs_cleanup:
 	free(threadargs);
