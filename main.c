@@ -24,9 +24,13 @@
 
 #define IGNORE_BROKEN_PIPE_DEFAULT 1
 #define PORT_DEFAULT 1234
+#define METHOD_DEFAULT TX_METHOD_SENDFILE
+#define FILENAME_DEFAULT "data.txt"
 
 #define LINE_CNT_DEFAULT 1024
 #define LINE_CNT_BLOCK 256
+#define CMDS_DEFAULT 1024
+#define CMDS_BLOCK 1024
 #define LINE_LENGTH_DEFAULT 16
 #define LINE_LENGTH_BLOCK 8
 
@@ -43,7 +47,7 @@ const char* myaddrs[NUM_MY_ADDRS] = {};
 
 int ignore_broken_pipe = IGNORE_BROKEN_PIPE_DEFAULT;
 
-char* filename = "data.txt";
+char* filename = FILENAME_DEFAULT;
 
 struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
 
@@ -53,8 +57,9 @@ void* send_thread(void* data)
 {
 	long i = 0;
 	int err;
-	off_t offset;
+	off_t offset, send_offset;
 	struct threadargs_t* args = data;
+	ssize_t send_size;
 	printf("Starting thread %d, length %zd, offset @%zd\n", args->tid, args->length, args->offset);
 reconnect:
 	if(doexit)
@@ -83,22 +88,42 @@ reconnect:
 		goto newsocket;
 	}
 	printf("Connected socket %d\n", args->socket);
-	while(!doexit)
-	{
-		offset = args->offset;
-		while((offset - args->offset) < args->length) {
-			printf("Sendfileing %zd bytes, offset %zd\n", args->length - (offset - args->offset), offset);
-			i++;
-			if((err = sendfile(args->sockets[args->socket], fileno(args->file), &offset, args->length - (offset - args->offset))) < 0)
-			{
-				if(errno == EPIPE && ignore_broken_pipe)
-					continue;
+	if(args->method == TX_METHOD_SENDFILE) {
+		while(!doexit) {
+			offset = args->offset;
+			while((offset - args->offset) < args->length) {
+				printf("Sendfileing %zd bytes, offset %zd\n", args->length - (offset - args->offset), offset);
+				i++;
+				if((err = sendfile(args->sockets[args->socket], fileno(args->file), &offset, args->length - (offset - args->offset))) < 0) {
+					if(errno == EPIPE && ignore_broken_pipe) {
+						continue;
+					}
 
-				fprintf(stderr, "Write failed after %ld sendfiles: %d => %s\n", i, errno, strerror(errno));
-				if(errno == ECONNRESET)
-					goto newsocket;
+					fprintf(stderr, "Write failed after %ld sendfiles: %d => %s\n", i, errno, strerror(errno));
+					if(errno == ECONNRESET)
+						goto newsocket;
 
-				goto fail;
+					goto fail;
+				}
+			}
+		}
+	} else {
+		while(!doexit) {
+			send_offset = 0;
+			while(send_offset < args->length) {
+				if((send_size = write(args->sockets[args->socket], args->buffer + args->offset + send_offset, args->length - send_offset)) < 0) {
+					if(errno == EPIPE && ignore_broken_pipe) {
+						continue;
+					}
+
+					fprintf(stderr, "Write failed after %ld lines: %d => %s\n", i, errno, strerror(errno));
+					if(errno == ECONNRESET) {
+						goto newsocket;
+					}
+					doexit = true;
+					break;
+				}
+				send_offset += send_size;
 			}
 		}
 	}
@@ -122,25 +147,25 @@ void doshutdown(int signal)
 }
 
 void print_usage(char* binary) {
-	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] [-i <0|1>] [-t <number of threads>] [-h]\n", binary);
+	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
+			"[-i <0|1>] [-t <number of threads>] [-m <%d|%d>] [-h]\n", binary, TX_METHOD_SENDFILE, TX_METHOD_SEND);
 }
 
 int main(int argc, char** argv)
 {
-	unsigned char* buffer;
-	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0;
-	off_t* lineofftmp, *line_offsets;
+	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0, method = METHOD_DEFAULT;
 	struct sockaddr_in inaddr;
 	FILE* file;
-	long fsize, linenum = 0, lineoff_alloc, linepos = 0, fpos = 0, lines_per_thread;
-	char opt, *host;
+	long fsize, linenum = 0, linepos = 0, fpos = 0, cmds_per_thread, commands_alloc, cmd_num = 0;
+	char opt, *host, *buffer;
 	unsigned short port = PORT_DEFAULT;
 	int* sockets;
 	pthread_t* threads;
 	struct threadargs_t* threadargs;
+	struct pf_cmd* commands, *commandstmp, *cmd_current;
 
 
-	while((opt = getopt(argc, argv, "p:it:h")) != -1) {
+	while((opt = getopt(argc, argv, "p:it:hm:")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = (unsigned short)strtoul(optarg, NULL, 10);
@@ -152,6 +177,14 @@ int main(int argc, char** argv)
 				num_threads = atoi(optarg);
 				if(num_threads < 1) {
 					fprintf(stderr, "Number of threads must be > 0\n");
+					print_usage(argv[0]);
+					exit(1);
+				}
+				break;
+			case('m'):
+				method = atoi(optarg);
+				if(method != TX_METHOD_SENDFILE && method != TX_METHOD_SEND) {
+					fprintf(stderr, "TX method must be either %d (sendfile) or %d (send)\n", TX_METHOD_SENDFILE, TX_METHOD_SEND);
 					print_usage(argv[0]);
 					exit(1);
 				}
@@ -213,38 +246,46 @@ int main(int argc, char** argv)
 	fread(buffer, fsize, 1, file);
 	printf("Read %ld bytes of data to memory, counting instructions\n", fsize);
 
-	line_offsets = malloc(LINE_LENGTH_DEFAULT * sizeof(off_t));
-	lineoff_alloc = LINE_LENGTH_DEFAULT;
+	commands = malloc(CMDS_DEFAULT * sizeof(struct pf_cmd));
+	commands_alloc = CMDS_DEFAULT;
+	if(!commands) {
+		err = -ENOMEM;
+		fprintf(stderr, "Failed to allocate initial %d commands\n", CMDS_DEFAULT);
+		goto file_cleanup;
+	}
+
 	while(fpos < fsize)
 	{
-		if(linepos == 0)
-			line_offsets[linenum] = fpos;
+		if(linepos == 0) {
+			cmd_current = &commands[cmd_num];
+			cmd_current->data = buffer;
+			cmd_current->cmd = &buffer[fpos];
+			cmd_current->offset = fpos;
+		}
+		linepos++;
 		if(buffer[fpos] == '\n')
 		{
 			linenum++;
-			if(linenum == lineoff_alloc)
-			{
-				lineoff_alloc += LINE_CNT_BLOCK;
-				lineofftmp = realloc(line_offsets, lineoff_alloc * sizeof(off_t));
-				if(!lineofftmp)
-				{
-					fprintf(stderr, "Allocation of %d line offsets failed\n", LINE_CNT_BLOCK);
+			cmd_current->length = linepos;
+			cmd_num++;
+			if(cmd_num >= commands_alloc) {
+				commands_alloc += CMDS_BLOCK;
+				commandstmp = realloc(commands, commands_alloc * sizeof(struct pf_cmd));
+				if(!commandstmp) {
+					fprintf(stderr, "Allocation of %d commands failed\n", CMDS_BLOCK);
 					err = -ENOMEM;
-					goto lines_cleanup;
+					goto commands_cleanup;
 				}
-				line_offsets = lineofftmp;
+				commands = commandstmp;
 			}
 			linepos = 0;
 		}
-		else
-			linepos++;
 		fpos++;
 	}
-	line_offsets[linenum] = fpos;
-	printf("Got %ld instructions\n", linenum);
+	printf("Got %ld commands\n", cmd_num);
 
-	lines_per_thread = linenum / num_threads;
-	printf("Using %ld lines per thread\n", lines_per_thread);
+	cmds_per_thread = linenum / num_threads;
+	printf("Using %ld commands per thread\n", cmds_per_thread);
 
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
 	inaddr.sin_port = htons(port);
@@ -264,7 +305,7 @@ int main(int argc, char** argv)
 	printf("Thread handles: %p\n", threads);
 	if(!threads) {
 		fprintf(stderr, "Failed to allocate memory for thread handles\n");
-		goto lines_cleanup;
+		goto commands_cleanup;
 	}
 
 	threadargs = malloc(num_threads * sizeof(struct threadargs_t));
@@ -273,20 +314,36 @@ int main(int argc, char** argv)
 		goto thread_cleanup;
 	}
 
+	#define min(a, b) ((a) > (b) ? (b) : (a))
+
 	for(thread_cnt = 0; thread_cnt < num_threads; thread_cnt++)
 	{
 		threadargs[thread_cnt].sockets = sockets;
 		threadargs[thread_cnt].socket = thread_cnt;
 		threadargs[thread_cnt].tid = thread_cnt;
-		threadargs[thread_cnt].offset = line_offsets[lines_per_thread * thread_cnt];
-		threadargs[thread_cnt].length = line_offsets[lines_per_thread * (thread_cnt + 1)] - line_offsets[lines_per_thread * thread_cnt];
 		threadargs[thread_cnt].remoteaddr = (struct sockaddr*)&inaddr;
-		threadargs[thread_cnt].file = fopen(filename, "r");
-		if(!threadargs[thread_cnt].file) {
-			printf("Failed to open file for thread %d\n", thread_cnt);
+		threadargs[thread_cnt].method = method;
+
+		threadargs[thread_cnt].offset = commands[cmds_per_thread * thread_cnt].offset;
+		threadargs[thread_cnt].length = commands[min(cmds_per_thread * (thread_cnt + 1), linenum - 1)].offset -
+						commands[cmds_per_thread * thread_cnt].offset;
+		threadargs[thread_cnt].buffer = buffer;
+
+		threadargs[thread_cnt].file = NULL;
+		if(method == TX_METHOD_SENDFILE) {
+			threadargs[thread_cnt].file = fopen(filename, "r");
+			if(threadargs[thread_cnt].file < 0) {
+				err = -errno;
+				fprintf(stderr, "Failed to open file for thread %d: %s\n", thread_cnt, strerror(errno));
+				goto thread_file_cleanup;
+			}
+		}
+
+		err = -pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
+		if(err) {
+			fprintf(stderr, "Failed to create thread %d: %s\n", thread_cnt, strerror(-err));
 			goto thread_file_cleanup;
 		}
-		pthread_create(&threads[thread_cnt], NULL, send_thread, &threadargs[thread_cnt]);
 	}
 
 	printf("Waiting for threads to finish\n");
@@ -300,21 +357,23 @@ int main(int argc, char** argv)
 
 thread_file_cleanup:
 	while(thread_cnt-- > 0) {
+		if(threadargs[thread_cnt].file == NULL) {
+			continue;
+		}
 		fclose(threadargs[thread_cnt].file);
 	}
 threadargs_cleanup:
 	free(threadargs);
 thread_cleanup:
 	free(threads);
-lines_cleanup:
-	free(line_offsets);
+commands_cleanup:
+	free(commands);
 //memory_cleanup:
 	free(buffer);
 file_cleanup:
 	fclose(file);
 socket_cleanup:
-	for(i = 0; i < num_threads; i++)
-	{
+	for(i = 0; i < num_threads; i++) {
 		if(!sockets[i])
 			continue;
 		close(sockets[i]);
