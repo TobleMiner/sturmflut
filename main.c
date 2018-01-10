@@ -27,12 +27,8 @@
 #define METHOD_DEFAULT TX_METHOD_SENDFILE
 #define FILENAME_DEFAULT "data.txt"
 
-#define LINE_CNT_DEFAULT 1024
-#define LINE_CNT_BLOCK 256
 #define CMDS_DEFAULT 1024
 #define CMDS_BLOCK 1024
-#define LINE_LENGTH_DEFAULT 16
-#define LINE_LENGTH_BLOCK 8
 
 #define NUM_MY_ADDRS 0
 
@@ -156,7 +152,7 @@ int main(int argc, char** argv)
 	int num_threads = NUM_THREADS_DEFAULT, thread_cnt = 0, i, err = 0, method = METHOD_DEFAULT;
 	struct sockaddr_in inaddr;
 	FILE* file;
-	long fsize, linenum = 0, linepos = 0, fpos = 0, cmds_per_thread, commands_alloc, cmd_num = 0;
+	long fsize, linepos = 0, fpos = 0, cmds_per_thread, commands_alloc, cmd_num = 0;
 	char opt, *host, *buffer;
 	unsigned short port = PORT_DEFAULT;
 	int* sockets;
@@ -263,9 +259,7 @@ int main(int argc, char** argv)
 			cmd_current->offset = fpos;
 		}
 		linepos++;
-		if(buffer[fpos] == '\n')
-		{
-			linenum++;
+		if(buffer[fpos] == '\n') {
 			cmd_current->length = linepos;
 			cmd_num++;
 			if(cmd_num >= commands_alloc) {
@@ -284,7 +278,7 @@ int main(int argc, char** argv)
 	}
 	printf("Got %ld commands\n", cmd_num);
 
-	cmds_per_thread = linenum / num_threads;
+	cmds_per_thread = cmd_num / num_threads;
 	printf("Using %ld commands per thread\n", cmds_per_thread);
 
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
@@ -325,7 +319,7 @@ int main(int argc, char** argv)
 		threadargs[thread_cnt].method = method;
 
 		threadargs[thread_cnt].offset = commands[cmds_per_thread * thread_cnt].offset;
-		threadargs[thread_cnt].length = commands[min(cmds_per_thread * (thread_cnt + 1), linenum - 1)].offset -
+		threadargs[thread_cnt].length = commands[min(cmds_per_thread * (thread_cnt + 1) - 1, cmd_num)].offset -
 						commands[cmds_per_thread * thread_cnt].offset;
 		threadargs[thread_cnt].buffer = buffer;
 
@@ -362,7 +356,7 @@ thread_file_cleanup:
 		}
 		fclose(threadargs[thread_cnt].file);
 	}
-threadargs_cleanup:
+//threadargs_cleanup:
 	free(threadargs);
 thread_cleanup:
 	free(threads);
