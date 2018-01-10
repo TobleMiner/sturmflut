@@ -219,7 +219,6 @@ int main(int argc, char** argv)
 	{
 		if(linepos == 0)
 			line_offsets[linenum] = fpos;
-			
 		if(buffer[fpos] == '\n')
 		{
 			linenum++;
