@@ -260,6 +260,7 @@ static void* net_animate_thread(void* data) {
 		frame_id++;
 		frame_id %= num_frames;
 	}
+	return NULL;
 }
 
 int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigned int num_threads, struct net_animation* anim) {
