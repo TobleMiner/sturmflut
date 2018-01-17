@@ -133,11 +133,11 @@ int main(int argc, char** argv)
 	}
 
 	printf("Animation loaded\n");
-	printf("Shuffeling animation...\n");
+	printf("Shuffling animation...\n");
 
 	image_shuffle_animation(anim);
 
-	printf("Shuffeling complete\n");
+	printf("Shuffling complete\n");
 	printf("Converting animation to pixelflut commands...\n");
 
 	if((err = net_animation_to_net_animation(&net_anim, anim))) {
