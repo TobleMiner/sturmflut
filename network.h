@@ -21,10 +21,6 @@ struct net_threadargs_send {
 	unsigned int thread_id;
 };
 
-struct net_threadargs_animate {
-
-};
-
 struct pf_cmd {
 	char* cmd;
 	size_t length;
@@ -47,6 +43,11 @@ struct net_frame {
 struct net_animation {
 	struct net_frame* frames;
 	size_t num_frames;
+};
+
+struct net_threadargs_animate {
+	struct net* net;
+	struct net_animation* anim;
 };
 
 struct net {

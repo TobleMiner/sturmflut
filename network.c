@@ -249,6 +249,19 @@ newsocket:
 	goto reconnect;
 }
 
+static void* net_animate_thread(void* data) {
+	struct net_threadargs_animate* args = data;
+	size_t num_frames = args->anim->num_frames, frame_id = 0;
+	while(true) {
+		// Since POSIX.1-2008 usleep is no cancellation point anymore
+		pthread_testcancel();
+		args->net->current_frame = &args->anim->frames[frame_id];
+		usleep(args->net->current_frame->duration_ms * 10000UL);
+		frame_id++;
+		frame_id %= num_frames;
+	}
+}
+
 int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigned int num_threads, struct net_animation* anim) {
 	int err = 0;
 	unsigned int i;
@@ -260,7 +273,6 @@ int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigne
 	net->current_frame = &anim->frames[0];
 
 	free(net->threads_send);
-	net->num_send_threads = num_threads;
 	net->threads_send = malloc(num_threads * sizeof(pthread_t));
 	if(!net->threads_send) {
 		err = -ENOMEM;
@@ -273,6 +285,7 @@ int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigne
 		goto fail_threads_alloc;
 	}
 
+	net->num_send_threads = 0;
 	for(i = 0; i < num_threads; i++) {
 		net->targs_send[i].net = net;
 		// TODO Duplicate address
@@ -284,6 +297,14 @@ int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigne
 			goto fail_thread_create;
 		}
 		net->num_send_threads++;
+	}
+
+	net->targs_animate.net = net;
+	net->targs_animate.anim = anim;
+
+	err = -pthread_create(&net->thread_animate, NULL, net_animate_thread, &net->targs_animate);
+	if(err) {
+		goto fail_thread_create;
 	}
 
 	return 0;
@@ -307,8 +328,13 @@ void net_shutdown(struct net* net) {
 
 	assert(net->state == NET_STATE_SENDING);
 
+	pthread_cancel(net->thread_animate);
+	pthread_join(net->thread_animate, NULL);
+
 	for(i = 0; i < net->num_send_threads; i++) {
 		pthread_cancel(net->threads_send[i]);
 		pthread_join(net->threads_send[i], NULL);
 	}
+
+	net->state = NET_STATE_SHUTDOWN;
 }
