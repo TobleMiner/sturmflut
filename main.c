@@ -42,12 +42,12 @@ void doshutdown(int signal) {
 
 static void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
-			"[-i <0|1>] [-t <number of threads>] [-m <%d|%d>] [-h]\n", binary, TX_METHOD_SENDFILE, TX_METHOD_SEND);
+			"[-i <0|1>] [-t <number of threads>] [-h]\n", binary);
 }
 
 int main(int argc, char** argv)
 {
-	int num_threads = NUM_THREADS_DEFAULT, err = 0, method = METHOD_DEFAULT;
+	int num_threads = NUM_THREADS_DEFAULT, err = 0;
 	struct sockaddr_in inaddr;
 	char opt, *host;
 	unsigned short port = PORT_DEFAULT;
@@ -69,14 +69,6 @@ int main(int argc, char** argv)
 				num_threads = atoi(optarg);
 				if(num_threads < 1) {
 					fprintf(stderr, "Number of threads must be > 0\n");
-					print_usage(argv[0]);
-					exit(1);
-				}
-				break;
-			case('m'):
-				method = atoi(optarg);
-				if(method != TX_METHOD_SENDFILE && method != TX_METHOD_SEND) {
-					fprintf(stderr, "TX method must be either %d (sendfile) or %d (send)\n", TX_METHOD_SENDFILE, TX_METHOD_SEND);
 					print_usage(argv[0]);
 					exit(1);
 				}
