@@ -269,7 +269,6 @@ int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigne
 	assert(net->state == NET_STATE_IDLE);
 	net->state = NET_STATE_SENDING;
 
-	//TODO Actually implement frame switching
 	net->current_frame = &anim->frames[0];
 
 	free(net->threads_send);
