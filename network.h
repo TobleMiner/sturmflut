@@ -53,6 +53,8 @@ struct net_threadargs_animate {
 struct net {
 	int state;
 
+	bool ignore_broken_pipe;
+
 	struct sockaddr_in* src_addresses;
 	unsigned int num_src_addresses;
 

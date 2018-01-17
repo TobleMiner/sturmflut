@@ -173,6 +173,7 @@ int net_alloc(struct net** ret) {
 	}
 	net->num_src_addresses = 0;
 	net->state = NET_STATE_IDLE;
+	net->ignore_broken_pipe = false;
 
 	*ret = net;
 
@@ -221,8 +222,7 @@ reconnect:
 			write_size = write(sock, frame->data + initial_offset + offset, length - offset);
 			if(write_size < 0) {
 				err = -errno;
-				// TODO There should be some way to configure ignoring broken pipes
-				if(errno == EPIPE && false) {
+				if(errno == EPIPE && net->ignore_broken_pipe) {
 					continue;
 				}
 

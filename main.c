@@ -146,6 +146,7 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Failed to allocate network context: %s\n", strerror(-err));
 		goto fail_anim_convert;
 	}
+	net->ignore_broken_pipe = ignore_broken_pipe;
 
 	printf("Starting to flut\n");
 
