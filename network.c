@@ -38,7 +38,7 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 	char* data, *data_tmp;
 	off_t offset = 0;
 	unsigned int x, y;
-	union img_pixel pixel;
+	struct img_pixel pixel;
 	struct net_frame* dst = malloc(sizeof(struct net_frame));
 	if(!dst) {
 		err = -ENOMEM;
@@ -68,7 +68,7 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 			while(true) {
 				max_print_size = data_alloc_size - offset;
 				pixel = src->pixels[y * width + x];
-				print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %08x\n", x, y, pixel.abgr);
+				print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %08x\n", pixel.x, pixel.y, pixel.abgr);
 				if(print_size < 0) {
 					err = -EINVAL;
 					goto fail_data_alloc;

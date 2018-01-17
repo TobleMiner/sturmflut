@@ -133,6 +133,11 @@ int main(int argc, char** argv)
 	}
 
 	printf("Animation loaded\n");
+	printf("Shuffeling animation...\n");
+
+	image_shuffle_animation(anim);
+
+	printf("Shuffeling complete\n");
 	printf("Converting animation to pixelflut commands...\n");
 
 	if((err = net_animation_to_net_animation(&net_anim, anim))) {
@@ -141,6 +146,7 @@ int main(int argc, char** argv)
 	}
 
 	printf("Conversion finished\n");
+	image_free_animation(anim);
 
 	if((err = net_alloc(&net))) {
 		fprintf(stderr, "Failed to allocate network context: %s\n", strerror(-err));
@@ -162,6 +168,11 @@ int main(int argc, char** argv)
 	printf("Exiting...\n");
 
 	net_shutdown(net);
+
+	net_free(net);
+	net_free_animation(net_anim);
+	image_free(img_ctx);
+	return 0;
 
 fail_net_alloc:
 	net_free(net);

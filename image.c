@@ -37,7 +37,7 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 	PixelWand* pixel;
 	struct img_animation* anim;
 	struct img_frame* frames, *img_frame;
-	union img_pixel* img_pixel;
+	struct img_pixel* img_pixel;
 	size_t num_images, x, y;
 
 	wand_base = NewMagickWand();
@@ -101,7 +101,7 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 		img_frame->duration_ms = MagickGetImageDelay(wand_coalesce);
 		img_frame->num_pixels = anim->width * anim->height;
 
-		img_frame->pixels = malloc(img_frame->num_pixels * sizeof(union img_pixel));
+		img_frame->pixels = malloc(img_frame->num_pixels * sizeof(struct img_pixel));
 		if(!img_frame->pixels) {
 			err = -ENOMEM;
 			goto fail_alloc_pixels;
@@ -121,6 +121,9 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 				img_pixel->color.green = PixelGetGreenQuantum(pixel);
 				img_pixel->color.blue = PixelGetBlueQuantum(pixel);
 				img_pixel->color.alpha = PixelGetAlphaQuantum(pixel);
+
+				img_pixel->x = x;
+				img_pixel->y = y;
 			}
 		}
 
@@ -159,4 +162,24 @@ void image_free_animation(struct img_animation* anim) {
 
 	free(anim->frames);
 	free(anim);
+}
+
+
+void image_shuffle_frame(struct img_frame* frame) {
+	size_t num_pixels = frame->num_pixels, i, pos1, pos2;
+	struct img_pixel pixel;
+	for(i = 0; i < num_pixels; i++) {
+		pos1 = rand() % num_pixels;
+		pos2 = rand() % num_pixels;
+		pixel = frame->pixels[pos2];
+		frame->pixels[pos2] = frame->pixels[pos1];
+		frame->pixels[pos1] = pixel;
+	}
+}
+
+void image_shuffle_animation(struct img_animation* anim) {
+	size_t num_frames = anim->num_frames, i;
+	for(i = 0; i < num_frames; i++) {
+		image_shuffle_frame(&anim->frames[i]);
+	}
 }
