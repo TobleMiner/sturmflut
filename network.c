@@ -20,9 +20,6 @@
 #include "network.h"
 
 
-#define NUM_CMD_DEFAULT 1024
-#define NUM_CMD_BLOCK 1024
-
 #define NUM_TEXT_DEFAULT 65536
 #define NUM_TEXT_BLOCK 65536
 
@@ -41,6 +38,7 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 	char* data, *data_tmp;
 	off_t offset = 0;
 	unsigned int x, y;
+	union img_pixel pixel;
 	struct net_frame* dst = malloc(sizeof(struct net_frame));
 	if(!dst) {
 		err = -ENOMEM;
@@ -69,7 +67,8 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 		for(x = 0; x < width; x++) {
 			while(true) {
 				max_print_size = data_alloc_size - offset;
-				print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %08x\n", x, y, src->pixels[y * width + x].rgba);
+				pixel = src->pixels[y * width + x];
+				print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %08x\n", x, y, pixel.abgr);
 				if(print_size < 0) {
 					err = -EINVAL;
 					goto fail_data_alloc;
