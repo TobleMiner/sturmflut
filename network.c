@@ -83,7 +83,6 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 					offset += print_size;
 					break;
 				}
-				printf("Allocation too small, reallocating data\n");
 				data_alloc_size += NUM_TEXT_BLOCK;
 				data_tmp = realloc(data, data_alloc_size);
 				if(!data_tmp) {
