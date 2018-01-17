@@ -64,7 +64,7 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 		err = -ENOMEM;
 		goto fail_anim_alloc;
 	}
-
+/**
 	if(!MagickTransformImageColorspace(wand_coalesce, RGBColorspace)) {
 		err = -EINVAL;
 		goto fail_coalesce_alloc;
@@ -74,7 +74,7 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 		err = -EINVAL;
 		goto fail_coalesce_alloc;
 	}
-
+*/
 	anim->width = MagickGetImageWidth(wand_coalesce);
 	anim->height = MagickGetImageHeight(wand_coalesce);
 
