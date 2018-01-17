@@ -254,7 +254,7 @@ static void* net_animate_thread(void* data) {
 		// Since POSIX.1-2008 usleep is no cancellation point anymore
 		pthread_testcancel();
 		args->net->current_frame = &args->anim->frames[frame_id];
-		usleep(args->net->current_frame->duration_ms * 10000UL);
+		usleep(args->net->current_frame->duration_ms * 1000UL);
 		frame_id++;
 		frame_id %= num_frames;
 	}
