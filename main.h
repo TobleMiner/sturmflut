@@ -1,6 +1,8 @@
 #ifndef __MAIN_H_
 #define __MAIN_H_
 
+#include "network.h"
+
 enum {
 	TX_METHOD_SENDFILE,
 	TX_METHOD_SEND
@@ -18,14 +20,6 @@ struct threadargs_t {
 
 	off_t offset;
 	size_t length;
-};
-
-struct pf_cmd {
-	char* cmd;
-	size_t length;
-
-	char* data;
-	off_t offset;
 };
 
 #endif
