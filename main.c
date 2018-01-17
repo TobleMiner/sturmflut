@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 		filename = argv[optind];
 	}
 
-	printf("Sending '%s' to %s:%u\n", filename, host, port);
+	printf("Will send '%s' to %s:%u\n", filename, host, port);
 
 	if(SHARED_CONNECTIONS)
 		return -EINVAL;
@@ -137,20 +137,29 @@ int main(int argc, char** argv)
 		goto fail;
 	}
 
+	printf("Loading animation...\n");
+
 	if((err = image_load_animation(&anim, filename))) {
 		fprintf(stderr, "Failed load animation: %s\n", strerror(-err));
 		goto fail_image_alloc;
 	}
+
+	printf("Animation loaded\n");
+	printf("Converting animation to pixelflut commands...\n");
 
 	if((err = net_animation_to_net_animation(&net_anim, anim))) {
 		fprintf(stderr, "Failed to convert animation to pixelflut commands: %s\n", strerror(-err));
 		goto fail_anim_load;
 	}
 
+	printf("Conversion finished\n");
+
 	if((err = net_alloc(&net))) {
 		fprintf(stderr, "Failed to allocate network context: %s\n", strerror(-err));
 		goto fail_anim_convert;
 	}
+
+	printf("Starting to flut\n");
 
 	if((err = net_send_animation(net, &inaddr, num_threads, net_anim))) {
 		fprintf(stderr, "Failed to send animation: %s\n", strerror(-err));
@@ -160,6 +169,8 @@ int main(int argc, char** argv)
 	while(!do_exit) {
 		usleep(500000);
 	}
+
+	printf("Exiting...\n");
 
 	net_shutdown(net);
 
