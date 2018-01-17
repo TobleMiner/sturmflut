@@ -24,7 +24,7 @@
 #define NUM_CMD_BLOCK 1024
 
 #define NUM_TEXT_DEFAULT 65536
-#define NUM_TEXT_ALLOC 65536
+#define NUM_TEXT_BLOCK 65536
 
 static int one = 1;
 
@@ -37,8 +37,8 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 	int err = 0;
 	size_t num_pixels = width * height, data_alloc_size, max_print_size, i;
 	ssize_t print_size;
-	struct pf_cmd* commands, cmd;
-	char* data, data_tmp;
+	struct pf_cmd* commands, *cmd;
+	char* data, *data_tmp;
 	off_t offset = 0;
 	unsigned int x, y;
 	struct net_frame* dst = malloc(sizeof(struct net_frame));
@@ -48,7 +48,7 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 	}
 	dst->width = width;
 	dst->height = height;
-	dst->delay_ms = src->delay_ms;
+	dst->duration_ms = src->duration_ms;
 	dst->num_cmds = num_pixels;
 
 	commands = malloc(num_pixels * sizeof(struct pf_cmd));
@@ -78,8 +78,8 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 					// First part of command setup
 					// We can't setup .data or .cmd here because data might be realloced
 					cmd = &commands[y * width + x];
-					cmd.offset = offset;
-					cmd.length = print_size;
+					cmd->offset = offset;
+					cmd->length = print_size;
 					offset += print_size;
 					break;
 				}
@@ -100,8 +100,8 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 		// Second part of command setup
 		// data is now finalized, we can set .data and calculate .cmd
 		cmd = &commands[i];
-		cmd.data = data;
-		cmd.cmd = data + cmd.offset;
+		cmd->data = data;
+		cmd->cmd = data + cmd->offset;
 	}
 
 	*ret = *dst;
@@ -182,7 +182,7 @@ fail:
 	return err;
 }
 
-int net_free(struct net* net) {
+void net_free(struct net* net) {
 	assert(net->state == NET_STATE_IDLE || net->state == NET_STATE_SHUTDOWN);
 
 	free(net->threads_send);
@@ -198,6 +198,7 @@ static void* net_send_thread(void* data) {
 	struct net_frame* frame;
 	ssize_t write_size;
 	unsigned int thread_id = args->thread_id;
+	struct net* net = args->net;
 
 reconnect:
 	sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -212,7 +213,7 @@ reconnect:
 	}
 
 	while(true) {
-		frame = data->net->current_frame;
+		frame = net->current_frame;
 		num_cmds = frame->width * frame->height;
 		cmds_per_thread = num_cmds / net->num_send_threads;
 		initial_offset = frame->cmds[thread_id * cmds_per_thread].offset;
@@ -275,20 +276,20 @@ int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigne
 	for(i = 0; i < num_threads; i++) {
 		net->targs_send[i].net = net;
 		// TODO Duplicate address
-		net->targs_send[i].remoteaddr = (struct sockaddr)dst_address;
+		net->targs_send[i].remoteaddr = (struct sockaddr*)dst_address;
 		net->targs_send[i].thread_id = i;
 
-		err = -pthread_create(&net->threads_send[i], net_send_thread, &net->targs_send[i]);
+		err = -pthread_create(&net->threads_send[i], NULL, net_send_thread, &net->targs_send[i]);
 		if(err) {
 			goto fail_thread_create;
 		}
-		net->num_threads++;
+		net->num_send_threads++;
 	}
 
 	return 0;
 
 fail_thread_create:
-	for(i = 0; i < net->num_threads; i++) {
+	for(i = 0; i < net->num_send_threads; i++) {
 		pthread_cancel(net->threads_send[i]);
 		pthread_join(net->threads_send[i], NULL);
 	}
@@ -306,7 +307,7 @@ void net_shutdown(struct net* net) {
 
 	assert(net->state == NET_STATE_SENDING);
 
-	for(i = 0; i < net->num_threads; i++) {
+	for(i = 0; i < net->num_send_threads; i++) {
 		pthread_cancel(net->threads_send[i]);
 		pthread_join(net->threads_send[i], NULL);
 	}

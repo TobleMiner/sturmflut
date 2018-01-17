@@ -98,7 +98,7 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 		assert(anim->num_frames < num_images);
 
 		img_frame = &frames[anim->num_frames];
-		img_frame->delay_ms = MagickGetImageDelay(wand_coalesce);
+		img_frame->duration_ms = MagickGetImageDelay(wand_coalesce);
 		img_frame->num_pixels = anim->width * anim->height;
 
 		img_frame->pixels = malloc(img_frame->num_pixels * sizeof(union img_pixel));

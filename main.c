@@ -34,13 +34,9 @@
 
 #define NUM_MY_ADDRS 0
 
-const char* myaddrs[NUM_MY_ADDRS] = {};
-
 int ignore_broken_pipe = IGNORE_BROKEN_PIPE_DEFAULT;
 
 char* filename = FILENAME_DEFAULT;
-
-struct sockaddr_in inmyaddrs[NUM_MY_ADDRS];
 
 bool do_exit = false;
 
@@ -55,15 +51,10 @@ static void print_usage(char* binary) {
 
 int main(int argc, char** argv)
 {
-	int num_threads = NUM_THREADS_DEFAULT, i, err = 0, method = METHOD_DEFAULT;
+	int num_threads = NUM_THREADS_DEFAULT, err = 0, method = METHOD_DEFAULT;
 	struct sockaddr_in inaddr;
-	FILE* file;
-	long fsize, linepos = 0, fpos = 0, cmds_per_thread, commands_alloc, cmd_num = 0;
-	char opt, *host, *buffer;
+	char opt, *host;
 	unsigned short port = PORT_DEFAULT;
-	int* sockets;
-	struct threadargs_t* threadargs;
-	struct pf_cmd* commands, *commandstmp, *cmd_current;
 
 	struct img_ctx* img_ctx;
 	struct img_animation* anim;
@@ -131,7 +122,7 @@ int main(int argc, char** argv)
 	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
 	inaddr.sin_port = htons(port);
 	inaddr.sin_family = AF_INET;
-	if(NUM_MY_ADDRS)
+/*	if(NUM_MY_ADDRS)
 	{
 		for(i = 0; i < NUM_MY_ADDRS; i++)
 		{
@@ -140,7 +131,7 @@ int main(int argc, char** argv)
 			inet_pton(AF_INET, myaddrs[i], &(inmyaddrs[i].sin_addr.s_addr));
 		}
 	}
-
+*/
 	if((err = image_alloc(&img_ctx))) {
 		fprintf(stderr, "Failed to allocate image context: %s\n", strerror(-err));
 		goto fail;
@@ -161,7 +152,7 @@ int main(int argc, char** argv)
 		goto fail_anim_convert;
 	}
 
-	if((err = net_send_animation(net, host, num_threads, net_anim))) {
+	if((err = net_send_animation(net, &inaddr, num_threads, net_anim))) {
 		fprintf(stderr, "Failed to send animation: %s\n", strerror(-err));
 		goto fail_net_alloc;
 	}

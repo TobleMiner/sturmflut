@@ -23,7 +23,7 @@ struct img_frame {
 	union img_pixel* pixels;
 	size_t num_pixels;
 
-	unsigned long delay_ms;
+	unsigned long duration_ms;
 };
 
 struct img_animation {

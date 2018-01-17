@@ -6,6 +6,8 @@
 
 #include <sys/socket.h>
 
+#include "image.h"
+
 enum {
 	NET_STATE_IDLE,
 	NET_STATE_SENDING,
@@ -69,7 +71,7 @@ void net_free_animation(struct net_animation* anim);
 int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src);
 
 int net_alloc(struct net** ret);
-int net_free(struct net* net);
+void net_free(struct net* net);
 int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigned int num_threads, struct net_animation* anim);
 void net_shutdown(struct net* net);
 
