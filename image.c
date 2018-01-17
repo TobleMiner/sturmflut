@@ -138,7 +138,7 @@ fail_alloc_pixels:
 		img_frame = &frames[anim->num_frames];
 		free(img_frame->pixels);
 	}
-fail_pixel_alloc:
+//fail_pixel_alloc:
 	DestroyPixelWand(pixel);
 fail_frames_alloc:
 	free(frames);

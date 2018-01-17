@@ -156,7 +156,7 @@ fail_frames_alloc:
 	for(i = 0; i < dst->num_frames; i++) {
 		net_frame_free(&dst->frames[i]);
 	}
-fail_animation_frames_alloc:
+//fail_animation_frames_alloc:
 	free(dst->frames);
 fail_animation_alloc:
 	free(dst);
@@ -312,7 +312,7 @@ fail_thread_create:
 		pthread_cancel(net->threads_send[i]);
 		pthread_join(net->threads_send[i], NULL);
 	}
-fail_targs_alloc:
+//fail_targs_alloc:
 	free(net->targs_send);
 fail_threads_alloc:
 	free(net->threads_send);
