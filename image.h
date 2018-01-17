@@ -11,9 +11,9 @@ struct img_ctx {
 
 union img_pixel {
 	struct {
-		uint8_t red;
-		uint8_t green;
 		uint8_t blue;
+		uint8_t green;
+		uint8_t red;
 		uint8_t alpha;
 	} color;
 	uint32_t rgba;
