@@ -5,6 +5,7 @@
 #include <pthread.h>
 
 #include <sys/socket.h>
+#include <sys/types.h>
 
 #include "image.h"
 
@@ -16,7 +17,8 @@ enum {
 
 struct net_threadargs_send {
 	struct net* net;
-	struct sockaddr* remoteaddr;
+	struct sockaddr_storage* remoteaddr;
+	size_t remoteaddr_len;
 
 	unsigned int thread_id;
 };
@@ -75,7 +77,7 @@ int net_animation_to_net_animation(struct net_animation** ret, struct img_animat
 
 int net_alloc(struct net** ret);
 void net_free(struct net* net);
-int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigned int num_threads, struct net_animation* anim);
+int net_send_animation(struct net* net, struct sockaddr_storage* dst_address, size_t dstaddr_len, unsigned int num_threads, struct net_animation* anim);
 void net_shutdown(struct net* net);
 
 #endif

@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/sendfile.h>
+#include <netdb.h>
 
 #include "main.h"
 #include "image.h"
@@ -25,7 +26,7 @@
 #define SHARED_CONNECTIONS 0
 
 #define IGNORE_BROKEN_PIPE_DEFAULT 1
-#define PORT_DEFAULT 1234
+#define PORT_DEFAULT "1234"
 #define FILENAME_DEFAULT "image.png"
 
 #define NUM_MY_ADDRS 0
@@ -48,19 +49,20 @@ static void print_usage(char* binary) {
 int main(int argc, char** argv)
 {
 	int num_threads = NUM_THREADS_DEFAULT, err = 0;
-	struct sockaddr_in inaddr;
-	char opt, *host;
-	unsigned short port = PORT_DEFAULT;
+	struct sockaddr_storage* inaddr;
+	size_t inaddr_len;
+	char opt, *host, *port = PORT_DEFAULT;
 
 	struct img_ctx* img_ctx;
 	struct img_animation* anim;
 	struct net_animation* net_anim;
 	struct net* net;
+	struct addrinfo* host_addr;
 
 	while((opt = getopt(argc, argv, "p:it:hm:")) != -1) {
 		switch(opt) {
 			case('p'):
-				port = (unsigned short)strtoul(optarg, NULL, 10);
+				port = optarg;
 				break;
 			case('i'):
 				ignore_broken_pipe = atoi(optarg);
@@ -91,7 +93,7 @@ int main(int argc, char** argv)
 		filename = argv[optind];
 	}
 
-	printf("Will send '%s' to %s:%u\n", filename, host, port);
+	printf("Will send '%s' to %s:%s\n", filename, host, port);
 
 	if(SHARED_CONNECTIONS)
 		return -EINVAL;
@@ -107,9 +109,13 @@ int main(int argc, char** argv)
 		return -EINVAL;
 	}
 
-	inet_pton(AF_INET, host, &(inaddr.sin_addr.s_addr));
-	inaddr.sin_port = htons(port);
-	inaddr.sin_family = AF_INET;
+	if((err = -getaddrinfo(host, port, NULL, &host_addr))) {
+		goto fail;
+	}
+
+	inaddr = (struct sockaddr_storage*)host_addr->ai_addr;
+	inaddr_len = host_addr->ai_addrlen;
+
 /*	if(NUM_MY_ADDRS)
 	{
 		for(i = 0; i < NUM_MY_ADDRS; i++)
@@ -122,7 +128,7 @@ int main(int argc, char** argv)
 */
 	if((err = image_alloc(&img_ctx))) {
 		fprintf(stderr, "Failed to allocate image context: %s\n", strerror(-err));
-		goto fail;
+		goto fail_addrinfo_alloc;
 	}
 
 	printf("Loading animation...\n");
@@ -156,7 +162,7 @@ int main(int argc, char** argv)
 
 	printf("Starting to flut\n");
 
-	if((err = net_send_animation(net, &inaddr, num_threads, net_anim))) {
+	if((err = net_send_animation(net, inaddr, inaddr_len, num_threads, net_anim))) {
 		fprintf(stderr, "Failed to send animation: %s\n", strerror(-err));
 		goto fail_net_alloc;
 	}
@@ -182,6 +188,8 @@ fail_anim_load:
 	image_free_animation(anim);
 fail_image_alloc:
 	image_free(img_ctx);
+fail_addrinfo_alloc:
+	freeaddrinfo(host_addr);
 fail:
 	return err;
 }

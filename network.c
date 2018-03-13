@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/sendfile.h>
+#include <netdb.h>
 
 #include "image.h"
 #include "network.h"
@@ -200,13 +201,13 @@ static void* net_send_thread(void* data) {
 	struct net* net = args->net;
 
 reconnect:
-	sock = socket(AF_INET, SOCK_STREAM, 0);
+	sock = socket(args->remoteaddr->ss_family, SOCK_STREAM, 0);
 	if(sock < 0) {
 		err = sock;
 		goto fail;
 	}
 
-	if((err = connect(sock, args->remoteaddr, sizeof(struct sockaddr_in)))) {
+	if((err = connect(sock, (struct sockaddr*)args->remoteaddr, args->remoteaddr_len))) {
 		fprintf(stderr ,"Failed to connect: %s\n", strerror(-err));
 		goto fail;
 	}
@@ -261,7 +262,7 @@ static void* net_animate_thread(void* data) {
 	return NULL;
 }
 
-int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigned int num_threads, struct net_animation* anim) {
+int net_send_animation(struct net* net, struct sockaddr_storage* dst_address, size_t dstaddr_len, unsigned int num_threads, struct net_animation* anim) {
 	int err = 0;
 	unsigned int i;
 
@@ -287,7 +288,8 @@ int net_send_animation(struct net* net, struct sockaddr_in* dst_address, unsigne
 	for(i = 0; i < num_threads; i++) {
 		net->targs_send[i].net = net;
 		// TODO Duplicate address
-		net->targs_send[i].remoteaddr = (struct sockaddr*)dst_address;
+		net->targs_send[i].remoteaddr = dst_address;
+		net->targs_send[i].remoteaddr_len = dstaddr_len;
 		net->targs_send[i].thread_id = i;
 
 		err = -pthread_create(&net->threads_send[i], NULL, net_send_thread, &net->targs_send[i]);
