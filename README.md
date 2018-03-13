@@ -1,7 +1,7 @@
 Sturmflut
 =========
 
-Sturmflut is a very fast pixelflut client written entirely in C.
+Sturmflut is a very fast pixelflut client with full IPv6 support written entirely in C.
 It can handle both ordinary image files and animations.
 
 # Compiling
