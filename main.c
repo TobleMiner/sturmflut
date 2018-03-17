@@ -48,10 +48,10 @@ static void print_usage(char* binary) {
 
 int main(int argc, char** argv)
 {
-	int num_threads = NUM_THREADS_DEFAULT, err = 0;
+	int opt, num_threads = NUM_THREADS_DEFAULT, err = 0;
 	struct sockaddr_storage* inaddr;
 	size_t inaddr_len;
-	char opt, *host, *port = PORT_DEFAULT;
+	char *host, *port = PORT_DEFAULT;
 
 	struct img_ctx* img_ctx;
 	struct img_animation* anim;
