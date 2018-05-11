@@ -71,9 +71,9 @@ struct net {
 };
 
 void net_frame_free(struct net_frame* frame);
-int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height);
+int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height, bool monochrome);
 void net_free_animation(struct net_animation* anim);
-int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src);
+int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome);
 
 int net_alloc(struct net** ret);
 void net_free(struct net* net);

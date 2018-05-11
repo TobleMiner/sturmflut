@@ -43,7 +43,7 @@ void doshutdown(int signal) {
 
 static void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
-			"[-i <0|1>] [-t <number of threads>] [-h]\n", binary);
+			"[-i <0|1>] [-t <number of threads>] [-m] [-h]\n", binary);
 }
 
 int main(int argc, char** argv)
@@ -51,6 +51,7 @@ int main(int argc, char** argv)
 	int opt, num_threads = NUM_THREADS_DEFAULT, err = 0;
 	struct sockaddr_storage* inaddr;
 	size_t inaddr_len;
+	bool monochrome = false;
 	char *host, *port = PORT_DEFAULT;
 
 	struct img_ctx* img_ctx;
@@ -59,7 +60,7 @@ int main(int argc, char** argv)
 	struct net* net;
 	struct addrinfo* host_addr;
 
-	while((opt = getopt(argc, argv, "p:it:hm:")) != -1) {
+	while((opt = getopt(argc, argv, "p:it:hm")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = optarg;
@@ -74,6 +75,9 @@ int main(int argc, char** argv)
 					print_usage(argv[0]);
 					exit(1);
 				}
+				break;
+			case('m'):
+				monochrome = true;
 				break;
 			default:
 				print_usage(argv[0]);
@@ -146,7 +150,7 @@ int main(int argc, char** argv)
 	printf("Shuffling complete\n");
 	printf("Converting animation to pixelflut commands...\n");
 
-	if((err = net_animation_to_net_animation(&net_anim, anim))) {
+	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome))) {
 		fprintf(stderr, "Failed to convert animation to pixelflut commands: %s\n", strerror(-err));
 		goto fail_anim_load;
 	}

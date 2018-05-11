@@ -31,7 +31,7 @@ void net_frame_free(struct net_frame* frame) {
 	free(frame->cmds);
 }
 
-int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height) {
+int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height, bool monochrome) {
 	int err = 0;
 	size_t num_pixels = width * height, data_alloc_size, max_print_size, i;
 	ssize_t print_size;
@@ -69,7 +69,10 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 			while(true) {
 				max_print_size = data_alloc_size - offset;
 				pixel = src->pixels[y * width + x];
-				print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %08x\n", pixel.x, pixel.y, pixel.abgr);
+				if(monochrome)
+					print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %08x\n", pixel.x, pixel.y, pixel.abgr);
+				else
+					print_size = snprintf(data + offset, data_alloc_size - offset, "PX %u %u %u\n", pixel.x, pixel.y, !!pixel.abgr);
 				if(print_size < 0) {
 					err = -EINVAL;
 					goto fail_data_alloc;
@@ -126,7 +129,7 @@ void net_free_animation(struct net_animation* anim) {
 	free(anim);
 }
 
-int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src) {
+int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome) {
 	int err = 0;
 	size_t i;
 	struct net_animation* dst = malloc(sizeof(struct net_animation));
@@ -143,7 +146,7 @@ int net_animation_to_net_animation(struct net_animation** ret, struct img_animat
 	}
 
 	for(i = 0; i < src->num_frames; i++) {
-		err = net_frame_to_net_frame(&dst->frames[i], &src->frames[i], src->width, src->height);
+		err = net_frame_to_net_frame(&dst->frames[i], &src->frames[i], src->width, src->height, monochrome);
 		dst->num_frames++;
 		if(err) {
 			goto fail_frames_alloc;
