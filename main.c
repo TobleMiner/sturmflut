@@ -43,7 +43,7 @@ void doshutdown(int signal) {
 
 static void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
-			"[-i <0|1>] [-t <number of threads>] [-m] [-h]\n", binary);
+			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-h]\n", binary);
 }
 
 int main(int argc, char** argv)
@@ -53,6 +53,7 @@ int main(int argc, char** argv)
 	size_t inaddr_len;
 	bool monochrome = false;
 	char *host, *port = PORT_DEFAULT;
+	unsigned int offset_x, offset_y;
 
 	struct img_ctx* img_ctx;
 	struct img_animation* anim;
@@ -60,7 +61,7 @@ int main(int argc, char** argv)
 	struct net* net;
 	struct addrinfo* host_addr;
 
-	while((opt = getopt(argc, argv, "p:it:hm")) != -1) {
+	while((opt = getopt(argc, argv, "p:it:hmo:")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = optarg;
@@ -78,6 +79,13 @@ int main(int argc, char** argv)
 				break;
 			case('m'):
 				monochrome = true;
+				break;
+			case('o'):
+				if(sscanf(optarg, "%u:%u", &offset_x, &offset_y) != 2) {
+					fprintf(stderr, "Invalid offset spec, must be <horizontal>:<vertical>\n");
+					print_usage(argv[0]);
+					exit(1);
+				}
 				break;
 			default:
 				print_usage(argv[0]);
@@ -150,7 +158,7 @@ int main(int argc, char** argv)
 	printf("Shuffling complete\n");
 	printf("Converting animation to pixelflut commands...\n");
 
-	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome))) {
+	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome, offset_x, offset_y))) {
 		fprintf(stderr, "Failed to convert animation to pixelflut commands: %s\n", strerror(-err));
 		goto fail_anim_load;
 	}
