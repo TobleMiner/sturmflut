@@ -274,7 +274,6 @@ int net_send_animation(struct net* net, struct sockaddr_storage* dst_address, si
 
 	net->current_frame = &anim->frames[0];
 
-	free(net->threads_send);
 	net->threads_send = malloc(num_threads * sizeof(pthread_t));
 	if(!net->threads_send) {
 		err = -ENOMEM;
