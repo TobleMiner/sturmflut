@@ -43,7 +43,7 @@ void doshutdown(int signal) {
 
 static void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
-			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-h]\n", binary);
+			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-s <percentage>] [-h]\n", binary);
 }
 
 int main(int argc, char** argv)
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
 	size_t inaddr_len;
 	bool monochrome = false;
 	char *host, *port = PORT_DEFAULT;
-	unsigned int offset_x, offset_y;
+	unsigned int offset_x, offset_y, sparse_perc = 100;
 
 	struct img_ctx* img_ctx;
 	struct img_animation* anim;
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 	struct net* net;
 	struct addrinfo* host_addr;
 
-	while((opt = getopt(argc, argv, "p:it:hmo:")) != -1) {
+	while((opt = getopt(argc, argv, "p:it:hmo:s:")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = optarg;
@@ -83,6 +83,14 @@ int main(int argc, char** argv)
 			case('o'):
 				if(sscanf(optarg, "%u:%u", &offset_x, &offset_y) != 2) {
 					fprintf(stderr, "Invalid offset spec, must be <horizontal>:<vertical>\n");
+					print_usage(argv[0]);
+					exit(1);
+				}
+				break;
+			case('s'):
+				sparse_perc = atoi(optarg);
+				if(sparse_perc > 100 || sparse_perc < 0) {
+					fprintf(stderr, "Invalid sparse spec, must be in range 0-100\n");
 					print_usage(argv[0]);
 					exit(1);
 				}
@@ -158,7 +166,7 @@ int main(int argc, char** argv)
 	printf("Shuffling complete\n");
 	printf("Converting animation to pixelflut commands...\n");
 
-	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome, offset_x, offset_y))) {
+	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome, offset_x, offset_y, sparse_perc))) {
 		fprintf(stderr, "Failed to convert animation to pixelflut commands: %s\n", strerror(-err));
 		goto fail_anim_load;
 	}

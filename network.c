@@ -31,7 +31,7 @@ void net_frame_free(struct net_frame* frame) {
 	free(frame->cmds);
 }
 
-int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height, bool monochrome, unsigned int offset_x, unsigned int offset_y) {
+int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc) {
 	int err = 0;
 	size_t num_pixels = width * height, data_alloc_size, max_print_size, i;
 	ssize_t print_size;
@@ -66,6 +66,9 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 
 	for(y = 0; y < height; y++) {
 		for(x = 0; x < width; x++) {
+			if((y * width + x) % 100 >= sparse_perc) {
+				continue;
+			}
 			while(true) {
 				max_print_size = data_alloc_size - offset;
 				pixel = src->pixels[y * width + x];
@@ -131,7 +134,7 @@ void net_free_animation(struct net_animation* anim) {
 	free(anim);
 }
 
-int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome, unsigned int offset_x, unsigned int offset_y) {
+int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc) {
 	int err = 0;
 	size_t i;
 	struct net_animation* dst = malloc(sizeof(struct net_animation));
@@ -148,7 +151,7 @@ int net_animation_to_net_animation(struct net_animation** ret, struct img_animat
 	}
 
 	for(i = 0; i < src->num_frames; i++) {
-		err = net_frame_to_net_frame(&dst->frames[i], &src->frames[i], src->width, src->height, monochrome, offset_x, offset_y);
+		err = net_frame_to_net_frame(&dst->frames[i], &src->frames[i], src->width, src->height, monochrome, offset_x, offset_y, sparse_perc);
 		dst->num_frames++;
 		if(err) {
 			goto fail_frames_alloc;
