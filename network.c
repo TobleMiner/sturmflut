@@ -16,6 +16,7 @@
 #include <getopt.h>
 #include <sys/sendfile.h>
 #include <netdb.h>
+#include <assert.h>
 
 #include "image.h"
 #include "network.h"

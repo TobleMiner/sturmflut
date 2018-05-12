@@ -3,8 +3,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
+#include <assert.h>
 
-#include <MagickWand/MagickWand.h>
+#include <wand/MagickWand.h>
 
 #include "image.h"
 

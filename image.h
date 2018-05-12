@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include <MagickWand/MagickWand.h>
+#include <wand/MagickWand.h>
 
 struct img_ctx {
 	MagickWand* wand;
