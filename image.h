@@ -3,7 +3,11 @@
 
 #include <stdint.h>
 
-#include <wand/MagickWand.h>
+#if IMAGICK < 7
+	#include <wand/MagickWand.h>
+#else
+	#include <MagickWand/MagickWand.h>
+#endif
 
 struct img_ctx {
 	MagickWand* wand;

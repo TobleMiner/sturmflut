@@ -5,8 +5,6 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <wand/MagickWand.h>
-
 #include "image.h"
 
 int image_alloc(struct img_ctx** ret) {
