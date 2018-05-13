@@ -2,7 +2,7 @@ CC=gcc
 CCFLAGS=-Ofast -Wall -march=native
 RM=rm -f
 
-MAGICK_VERSION=$(shell pkg-config --cflags-only-I ImageMagick | grep -E -o '[0-9]+')
+MAGICK_VERSION=$(shell pkg-config --modversion ImageMagick | grep -E -o '^[0-9]+')
 
 all: clean sturmflut
 
