@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 	struct net* net;
 	struct addrinfo* host_addr;
 
-	while((opt = getopt(argc, argv, "p:it:hmo:s:")) != -1) {
+	while((opt = getopt(argc, argv, "p:i:t:hmo:s:")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = optarg;
