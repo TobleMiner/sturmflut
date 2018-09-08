@@ -53,7 +53,7 @@ int main(int argc, char** argv)
 	size_t inaddr_len;
 	bool monochrome = false;
 	char *host, *port = PORT_DEFAULT;
-	unsigned int offset_x, offset_y, sparse_perc = 100;
+	unsigned int offset_x = 0, offset_y = 0, sparse_perc = 100;
 
 	struct img_ctx* img_ctx;
 	struct img_animation* anim;
