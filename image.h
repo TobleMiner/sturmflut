@@ -9,6 +9,8 @@
 	#include <MagickWand/MagickWand.h>
 #endif
 
+#include "progress.h"
+
 struct img_ctx {
 	MagickWand* wand;
 };
@@ -45,10 +47,10 @@ struct img_animation {
 
 int image_alloc(struct img_ctx** ret);
 void image_free(struct img_ctx* ctx);
-int image_load_animation(struct img_animation** ret, char* fname);
+int image_load_animation(struct img_animation** ret, char* fname, progress_cb progress_cb);
 void image_free_animation(struct img_animation* anim);
 
 void image_shuffle_frame(struct img_frame* frame);
-void image_shuffle_animation(struct img_animation* anim);
+void image_shuffle_animation(struct img_animation* anim, progress_cb progress_cb);
 
 #endif

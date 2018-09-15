@@ -46,6 +46,27 @@ static void print_usage(char* binary) {
 			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-s <percentage>] [-h]\n", binary);
 }
 
+static void generic_progress_cb(size_t current, size_t total, const char* fmt) {
+	printf("\r                                                      "); // Don't ask
+	printf(fmt, current, total);
+	if(current == total) {
+		printf("\n");
+	}
+	fflush(stdout);
+}
+
+static void load_progress_cb(size_t current, size_t total) {
+	generic_progress_cb(current, total, "\r%zu/%zu frames loaded");
+}
+
+static void shuffle_progress_cb(size_t current, size_t total) {
+	generic_progress_cb(current, total, "\r%zu/%zu frames shuffled");
+}
+
+static void conversion_progress_cb(size_t current, size_t total) {
+	generic_progress_cb(current, total, "\r%zu/%zu frames converted");
+}
+
 int main(int argc, char** argv)
 {
 	int opt, num_threads = NUM_THREADS_DEFAULT, err = 0;
@@ -153,7 +174,7 @@ int main(int argc, char** argv)
 
 	printf("Loading animation...\n");
 
-	if((err = image_load_animation(&anim, filename))) {
+	if((err = image_load_animation(&anim, filename, load_progress_cb))) {
 		fprintf(stderr, "Failed load animation: %s\n", strerror(-err));
 		goto fail_image_alloc;
 	}
@@ -161,12 +182,12 @@ int main(int argc, char** argv)
 	printf("Animation loaded\n");
 	printf("Shuffling animation...\n");
 
-	image_shuffle_animation(anim);
+	image_shuffle_animation(anim, shuffle_progress_cb);
 
 	printf("Shuffling complete\n");
 	printf("Converting animation to pixelflut commands...\n");
 
-	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome, offset_x, offset_y, sparse_perc))) {
+	if((err = net_animation_to_net_animation(&net_anim, anim, monochrome, offset_x, offset_y, sparse_perc, conversion_progress_cb))) {
 		fprintf(stderr, "Failed to convert animation to pixelflut commands: %s\n", strerror(-err));
 		goto fail_anim_load;
 	}

@@ -135,9 +135,10 @@ void net_free_animation(struct net_animation* anim) {
 	free(anim);
 }
 
-int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc) {
+int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc, progress_cb progress_cb) {
 	int err = 0;
 	size_t i;
+	struct timespec last_progress;
 	struct net_animation* dst = malloc(sizeof(struct net_animation));
 	if(!dst) {
 		err = -ENOMEM;
@@ -151,11 +152,17 @@ int net_animation_to_net_animation(struct net_animation** ret, struct img_animat
 		goto fail_animation_alloc;
 	}
 
+	if(progress_cb) {
+		last_progress = progress_limit_rate(progress_cb, 0, src->num_frames, PROGESS_INTERVAL_DEFAULT, NULL);
+	}
 	for(i = 0; i < src->num_frames; i++) {
 		err = net_frame_to_net_frame(&dst->frames[i], &src->frames[i], src->width, src->height, monochrome, offset_x, offset_y, sparse_perc);
 		dst->num_frames++;
 		if(err) {
 			goto fail_frames_alloc;
+		}
+		if(progress_cb) {
+			last_progress = progress_limit_rate(progress_cb, dst->num_frames, src->num_frames, PROGESS_INTERVAL_DEFAULT, &last_progress);
 		}
 	}
 

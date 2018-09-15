@@ -8,6 +8,7 @@
 #include <sys/types.h>
 
 #include "image.h"
+#include "progress.h"
 
 enum {
 	NET_STATE_IDLE,
@@ -73,7 +74,7 @@ struct net {
 void net_frame_free(struct net_frame* frame);
 int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigned int width, unsigned int height, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc);
 void net_free_animation(struct net_animation* anim);
-int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc);
+int net_animation_to_net_animation(struct net_animation** ret, struct img_animation* src, bool monochrome, unsigned int offset_x, unsigned int offset_y, unsigned int sparse_perc, progress_cb progress_cb);
 
 int net_alloc(struct net** ret);
 void net_free(struct net* net);

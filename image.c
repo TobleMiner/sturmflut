@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <time.h>
 
 #include "image.h"
 
@@ -30,7 +31,7 @@ void image_free(struct img_ctx* ctx) {
 
 
 
-int image_load_animation(struct img_animation** ret, char* fname) {
+int image_load_animation(struct img_animation** ret, char* fname, progress_cb progress_cb) {
 	int err = 0;
 	MagickWand* wand_base, *wand_coalesce;
 	PixelWand* pixel;
@@ -38,6 +39,7 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 	struct img_frame* frames, *img_frame;
 	struct img_pixel* img_pixel;
 	size_t num_images, x, y;
+	struct timespec last_progress;
 
 	wand_base = NewMagickWand();
 	if(!wand_base) {
@@ -91,6 +93,10 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 		goto fail_frames_alloc;
 	}
 
+	if(progress_cb) {
+		last_progress = progress_limit_rate(progress_cb, 0, num_images, PROGESS_INTERVAL_DEFAULT, NULL);
+	}
+
 	do {
 		assert(anim->width == MagickGetImageWidth(wand_coalesce));
 		assert(anim->height == MagickGetImageHeight(wand_coalesce));
@@ -124,6 +130,10 @@ int image_load_animation(struct img_animation** ret, char* fname) {
 				img_pixel->x = x;
 				img_pixel->y = y;
 			}
+		}
+
+		if(progress_cb) {
+			last_progress = progress_limit_rate(progress_cb, anim->num_frames, num_images, PROGESS_INTERVAL_DEFAULT, &last_progress);
 		}
 
 	} while(MagickNextImage(wand_coalesce));
@@ -176,9 +186,16 @@ void image_shuffle_frame(struct img_frame* frame) {
 	}
 }
 
-void image_shuffle_animation(struct img_animation* anim) {
+void image_shuffle_animation(struct img_animation* anim, progress_cb progress_cb) {
+	struct timespec last_progress;
 	size_t num_frames = anim->num_frames, i;
+	if(progress_cb) {
+		last_progress = progress_limit_rate(progress_cb, 0, num_frames, PROGESS_INTERVAL_DEFAULT, NULL);
+	}
 	for(i = 0; i < num_frames; i++) {
 		image_shuffle_frame(&anim->frames[i]);
+		if(progress_cb) {
+			last_progress = progress_limit_rate(progress_cb, i + 1, num_frames, PROGESS_INTERVAL_DEFAULT, &last_progress);
+		}
 	}
 }
