@@ -9,6 +9,7 @@
 
 #include "image.h"
 #include "progress.h"
+#include "main.h"
 
 enum {
 	NET_STATE_IDLE,

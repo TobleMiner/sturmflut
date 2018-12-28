@@ -3,4 +3,6 @@
 
 #include "network.h"
 
+void doshutdown(int signal);
+
 #endif

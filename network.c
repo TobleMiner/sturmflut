@@ -256,6 +256,7 @@ fail:
 	shutdown(sock, SHUT_RDWR);
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int));
 	close(sock);
+	doshutdown(err);
 	return NULL;
 newsocket:
 	shutdown(sock, SHUT_RDWR);
