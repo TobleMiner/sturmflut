@@ -8,6 +8,7 @@ It can handle both ordinary image files and animations.
 
 ## Dependencies
 
+- pkg-config
 - pthread
 - ImageMagick
 
