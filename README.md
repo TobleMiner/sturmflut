@@ -11,6 +11,10 @@ It can handle both ordinary image files and animations.
 - pkg-config
 - pthread
 - ImageMagick
+- MagickWand
+
+On debian-based systems all required dependencies can be installed using
+`apt-get install build-essential pkg-config libmagick++-dev libmagickwand-dev`
 
 Use ```make```.
 
