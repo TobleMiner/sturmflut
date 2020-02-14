@@ -70,9 +70,12 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, unsigne
 			if((y * width + x) % 100 >= sparse_perc) {
 				continue;
 			}
+			pixel = src->pixels[y * width + x];
+			if(pixel.color.alpha == 0) {
+				continue;
+			}
 			while(true) {
 				max_print_size = data_alloc_size - offset;
-				pixel = src->pixels[y * width + x];
 				effective_x = pixel.x + offset_x;
 				effective_y = pixel.y + offset_y;
 				if(monochrome)
