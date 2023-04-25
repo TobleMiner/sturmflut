@@ -199,3 +199,53 @@ void image_shuffle_animation(struct img_animation* anim, progress_cb progress_cb
 		}
 	}
 }
+
+int image_optimize_animation(struct img_animation* anim, progress_cb progress_cb) {
+	int i;
+	struct img_pixel *pixels_tmp;
+	struct timespec last_progress;
+	size_t previous_num_pixels = 0;
+	size_t optimized_num_pixels = 0;
+
+	pixels_tmp = malloc(anim->width * anim->height * sizeof(struct img_pixel));
+	if (!pixels_tmp) {
+		return -ENOMEM;
+	}
+
+	if(progress_cb) {
+		last_progress = progress_limit_rate(progress_cb, 0, anim->num_frames, PROGESS_INTERVAL_DEFAULT, NULL);
+	}
+	for (i = (int)anim->num_frames - 1; i > 0; i--) {
+		struct img_frame *frame = &anim->frames[i];
+		struct img_frame *prev_frame = &anim->frames[i - 1];
+		size_t j, num_pixels = 0;
+
+		previous_num_pixels += frame->num_pixels;
+		if (frame->num_pixels != prev_frame->num_pixels) {
+			fprintf(stderr, "WARNING: skipping optimization of frame %d, number of pixels different from previous frame\n", i);
+			optimized_num_pixels += frame->num_pixels;
+			continue;
+		}
+
+		for (j = 0; j < frame->num_pixels; j++) {
+			if (frame->pixels[j].abgr != prev_frame->pixels[j].abgr) {
+				pixels_tmp[num_pixels++] = frame->pixels[j];
+			}
+		}
+
+		memcpy(frame->pixels, pixels_tmp, num_pixels * sizeof(struct img_pixel));
+		frame->num_pixels = num_pixels;
+		optimized_num_pixels += num_pixels;
+		if(progress_cb) {
+			last_progress = progress_limit_rate(progress_cb, anim->num_frames - i, anim->num_frames - 1, PROGESS_INTERVAL_DEFAULT, &last_progress);
+		}
+	}
+	// Frame 0 is keyframe, can't optimize that one
+	previous_num_pixels += anim->frames[0].num_pixels;
+	optimized_num_pixels += anim->frames[0].num_pixels;
+
+	printf("Optimized out %.2f%% of pixel set commands\n", (previous_num_pixels - optimized_num_pixels) * 100.0f / previous_num_pixels);
+
+	free(pixels_tmp);
+	return 0;
+}

@@ -51,6 +51,7 @@ int image_load_animation(struct img_animation** ret, char* fname, progress_cb pr
 void image_free_animation(struct img_animation* anim);
 
 void image_shuffle_frame(struct img_frame* frame);
+int image_optimize_animation(struct img_animation* anim, progress_cb progress_cb);
 void image_shuffle_animation(struct img_animation* anim, progress_cb progress_cb);
 
 #endif

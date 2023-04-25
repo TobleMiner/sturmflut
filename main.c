@@ -43,7 +43,7 @@ void doshutdown(int signal) {
 
 static void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
-			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-s <percentage>] [-h]\n", binary);
+			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-O] [-s <percentage>] [-h]\n", binary);
 }
 
 static void generic_progress_cb(size_t current, size_t total, const char* fmt) {
@@ -57,6 +57,10 @@ static void generic_progress_cb(size_t current, size_t total, const char* fmt) {
 
 static void load_progress_cb(size_t current, size_t total) {
 	generic_progress_cb(current, total, "\r%zu/%zu frames loaded");
+}
+
+static void optimize_progress_cb(size_t current, size_t total) {
+	generic_progress_cb(current, total, "\r%zu/%zu frames optimized");
 }
 
 static void shuffle_progress_cb(size_t current, size_t total) {
@@ -73,6 +77,7 @@ int main(int argc, char** argv)
 	struct sockaddr_storage* inaddr;
 	size_t inaddr_len;
 	bool monochrome = false;
+	bool optimize = false;
 	char *host, *port = PORT_DEFAULT;
 	unsigned int offset_x = 0, offset_y = 0, sparse_perc = 100;
 
@@ -82,7 +87,7 @@ int main(int argc, char** argv)
 	struct net* net;
 	struct addrinfo* host_addr;
 
-	while((opt = getopt(argc, argv, "p:i:t:hmo:s:")) != -1) {
+	while((opt = getopt(argc, argv, "p:i:t:hmo:Os:")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = optarg;
@@ -107,6 +112,9 @@ int main(int argc, char** argv)
 					print_usage(argv[0]);
 					exit(1);
 				}
+				break;
+			case('O'):
+				optimize = true;
 				break;
 			case('s'):
 				sparse_perc = atoi(optarg);
@@ -180,6 +188,16 @@ int main(int argc, char** argv)
 	}
 
 	printf("Animation loaded\n");
+	if (optimize) {
+		printf("Optimizing animation...\n");
+
+		if((err = image_optimize_animation(anim, optimize_progress_cb))) {
+			fprintf(stderr, "Failed to optimize animation: %s\n", strerror(-err));
+			goto fail_image_alloc;
+		}
+
+		printf("Animation optimized\n");
+	}
 	printf("Shuffling animation...\n");
 
 	image_shuffle_animation(anim, shuffle_progress_cb);
