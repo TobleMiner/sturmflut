@@ -22,7 +22,7 @@ Use ```make```.
 # Usage
 
 ```
-./sturmflut <host> [file to send] [-p <port>] [-a <source ip address>] [-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-O] [-s <percentage>] [-h]
+./sturmflut <host> [file to send] [-p <port>] [-a <source ip address>] [-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-O] [-s <percentage>] [-S] [-h]
 
 host: IP address of pixelflut server
 file to send: Image/Animation to show
@@ -34,6 +34,7 @@ file to send: Image/Animation to show
 -o: Offset at which to draw, format: <x-offset>:<y-offset>
 -O: Optimize animations, send only pixels that have changed between frames
 -s: Sparse mode, send only <percentage> of pixels
+-S: Data saver mode, transmit every frame of an animation only once instead of flooding it
 -h: Show usage
 ```
 

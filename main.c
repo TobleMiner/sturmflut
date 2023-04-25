@@ -43,7 +43,7 @@ void doshutdown(int signal) {
 
 static void print_usage(char* binary) {
 	fprintf(stderr, "USAGE: %s <host> [file to send] [-p <port>] [-a <source ip address>] "
-			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-O] [-s <percentage>] [-h]\n", binary);
+			"[-i <0|1>] [-t <number of threads>] [-m] [-o <offset-spec>] [-O] [-s <percentage>] [-S] [-h]\n", binary);
 }
 
 static void generic_progress_cb(size_t current, size_t total, const char* fmt) {
@@ -78,6 +78,7 @@ int main(int argc, char** argv)
 	size_t inaddr_len;
 	bool monochrome = false;
 	bool optimize = false;
+	bool saver = false;
 	char *host, *port = PORT_DEFAULT;
 	unsigned int offset_x = 0, offset_y = 0, sparse_perc = 100;
 
@@ -87,7 +88,7 @@ int main(int argc, char** argv)
 	struct net* net;
 	struct addrinfo* host_addr;
 
-	while((opt = getopt(argc, argv, "p:i:t:hmo:Os:")) != -1) {
+	while((opt = getopt(argc, argv, "p:i:t:hmo:Os:S")) != -1) {
 		switch(opt) {
 			case('p'):
 				port = optarg;
@@ -123,6 +124,9 @@ int main(int argc, char** argv)
 					print_usage(argv[0]);
 					exit(1);
 				}
+				break;
+			case('S'):
+				saver = true;
 				break;
 			default:
 				print_usage(argv[0]);
@@ -218,6 +222,7 @@ int main(int argc, char** argv)
 		goto fail_anim_convert;
 	}
 	net->ignore_broken_pipe = ignore_broken_pipe;
+	net->data_saving = saver;
 
 	printf("Starting to flut\n");
 

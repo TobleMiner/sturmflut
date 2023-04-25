@@ -251,6 +251,10 @@ reconnect:
 			}
 			offset += write_size;
 		}
+		while (net->data_saving && net->current_frame == frame) {
+			pthread_testcancel();
+			usleep(1000);
+		}
 	}
 
 fail:

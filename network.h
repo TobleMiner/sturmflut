@@ -55,6 +55,7 @@ struct net {
 	int state;
 
 	bool ignore_broken_pipe;
+	bool data_saving;
 
 	struct sockaddr_in* src_addresses;
 	unsigned int num_src_addresses;
