@@ -64,6 +64,8 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, bool mo
 	}
 
 	for (i = 0; i < num_pixels; i++) {
+		cmd = &commands[i];
+		cmd->offset = offset;
 		if(i % 100 >= sparse_perc) {
 			continue;
 		}
@@ -87,8 +89,6 @@ int net_frame_to_net_frame(struct net_frame* ret, struct img_frame* src, bool mo
 			if(print_size < max_print_size) {
 				// First part of command setup
 				// We can't setup .data or .cmd here because data might be realloced
-				cmd = &commands[i];
-				cmd->offset = offset;
 				cmd->length = print_size;
 				offset += print_size;
 				break;
