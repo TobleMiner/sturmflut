@@ -1,4 +1,4 @@
-CC=gcc
+CC?=gcc
 CCFLAGS=-Ofast -Wall -march=native
 RM=rm -f
 

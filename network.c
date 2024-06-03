@@ -14,7 +14,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <sys/sendfile.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
 #include <netdb.h>
 #include <assert.h>
 
