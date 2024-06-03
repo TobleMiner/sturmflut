@@ -1,6 +1,8 @@
 CC=gcc
 CCFLAGS=-Ofast -Wall -march=native
 RM=rm -f
+INSTALL=install
+
 
 MAGICK_VERSION=$(shell pkg-config --modversion ImageMagick | grep -E -o '^[0-9]+')
 
@@ -11,3 +13,6 @@ sturmflut:
 
 clean:
 	$(RM) sturmflut
+
+install: sturmflut
+	$(INSTALL) -Dm755 sturmflut $(DESTDIR)/bin/sturmflut
