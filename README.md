@@ -4,6 +4,15 @@ Sturmflut
 Sturmflut is a very fast pixelflut client with full IPv6 support written entirely in C.
 It can handle both ordinary image files and animations.
 
+# Installation
+
+If you are running archlinux, you can use the package `sturmflut-git` from the AUR.
+
+For example:
+```bash
+$ yay -S sturmflut-git
+```
+
 # Compiling
 
 ## Dependencies
